@@ -10,3 +10,9 @@ bin           = @["nimts"]
 # Dependencies
 
 requires "nim >= 2.0.0"
+
+task test, "Run all test suites":
+  for file in listFiles("tests"):
+    if file.endsWith(".nim"):
+      exec "nim r -p:src --hints:off " & file
+
