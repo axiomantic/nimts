@@ -257,18 +257,31 @@ registerProcessor('dsp-processor', DspProcessor);
 
 ## CLI Reference
 
-NimTS includes a command-line tool for compiling Nim modules into standalone WebAssembly:
+NimTS includes a command-line tool for compiling Nim modules into WebAssembly:
 
 ```bash
-# Display help
+# Display help and available backends
 nimts --help
 
 # Display version
 nimts --version
 
-# Compile a Nim module to WASM
+# Compile a Nim module using the standalone micro-WASM backend (default)
 nimts compile src/dsp.nim dist/dsp.wasm
+
+# Explicitly choose the standalone micro-WASM backend (LLVM clang + wasm-ld + wasi-sysroot)
+nimts compile src/dsp.nim dist/dsp.wasm --backend:standalone
+
+# Choose the Emscripten backend (emcc with POSIX shims, virtual FS, and environment polyfills)
+nimts compile src/dsp.nim dist/dsp.wasm --backend:emscripten
 ```
+
+### Backend Comparison
+
+| Backend | Toolchain | Runtime Size | Virtual FS / POSIX | Best For |
+| :--- | :--- | :--- | :--- | :--- |
+| **`standalone`** *(Default)* | Clang + wasm-ld + wasi-sysroot | Tiny (~50–350 kB) | Minimal stubbing | AudioWorklets, Web Workers, micro-libraries, latency-critical DSP |
+| **`emscripten`** | Emscripten (`emcc`) | Larger (~300 kB–1+ MB) | Full in-memory POSIX & `FS` | Legacy C/Nim dependencies needing filesystem, canvas, or full POSIX libc |
 
 ---
 

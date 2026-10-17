@@ -116,5 +116,18 @@ describe('Vite Plugin (vite-plugin-nimts)', () => {
       expect(res.code).toContain('addNumbers');
       expect(res.code).toContain('createEngine');
     }, 30000);
+
+    it('throws actionable diagnostic error when backend: emscripten is selected but emcc is missing', async () => {
+      const plugin = nimtsPlugin({
+        backend: 'emscripten',
+        emccBin: '/path/to/nonexistent/emcc'
+      });
+      if (typeof plugin.configResolved === 'function') {
+        (plugin.configResolved as any)({ root: path.resolve(__dirname, '..') });
+      }
+      const load = plugin.load as Function;
+      const fixturePath = path.resolve(__dirname, 'fixtures/test_module.nim');
+      await expect(load.call({}, fixturePath)).rejects.toThrow(/emcc \(Emscripten compiler\) not found.*emsdk/);
+    });
   });
 });

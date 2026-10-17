@@ -22,14 +22,19 @@ export interface NimTsPluginOptions {
   extraNimFlags?: string[];
   outDir?: string;
   publicDir?: string;
+  backend?: 'standalone' | 'emscripten';
+  emccBin?: string;
+  emccFlags?: string[];
 }
 
 export function nimtsPlugin(options: NimTsPluginOptions = {}): Plugin {
   let config: ResolvedConfig;
+  const backend = options.backend || 'standalone';
   const nimBin = options.nimBin || process.env.NIM_BIN || 'nim';
   const clangBin = options.clangBin || process.env.CLANG_BIN || (process.platform === 'darwin' && path.isAbsolute('/opt/homebrew/opt/llvm/bin/clang') ? '/opt/homebrew/opt/llvm/bin/clang' : 'clang');
   const wasmldBin = options.wasmldBin || process.env.WASM_LD_BIN || (process.platform === 'darwin' && path.isAbsolute('/opt/homebrew/bin/wasm-ld') ? '/opt/homebrew/bin/wasm-ld' : 'wasm-ld');
   const sysroot = options.sysroot || process.env.WASI_SYSROOT || (process.platform === 'darwin' ? '/opt/homebrew/share/wasi-sysroot' : '/usr/share/wasi-sysroot');
+  const emccBin = options.emccBin || process.env.EMCC_BIN || (process.platform === 'darwin' && path.isAbsolute('/opt/homebrew/bin/emcc') ? '/opt/homebrew/bin/emcc' : 'emcc');
 
   return {
     name: 'vite-plugin-nimts',
@@ -55,7 +60,7 @@ export function nimtsPlugin(options: NimTsPluginOptions = {}): Plugin {
       const nimFilePath = id;
       const fileDir = path.dirname(nimFilePath);
       const baseName = path.basename(nimFilePath, '.nim');
-      const cacheDir = path.resolve(config.root || '.', '.nimts-cache', baseName);
+      const cacheDir = path.resolve(config.root || '.', '.nimts-cache', `${baseName}-${backend}`);
       await fs.mkdir(cacheDir, { recursive: true });
 
       const wasmOutPath = path.resolve(cacheDir, `${baseName}.wasm`);
@@ -83,20 +88,29 @@ export function nimtsPlugin(options: NimTsPluginOptions = {}): Plugin {
         } catch (err: any) {
           throw new Error(`nimts: Nim compiler not found at "${nimBin}". Please install Nim or specify options.nimBin.\nDetails: ${err?.message || err}`);
         }
-        try {
-          await execFileAsync(clangBin, ['--version']);
-        } catch (err: any) {
-          throw new Error(`nimts: Clang / LLVM not found at "${clangBin}". Please install LLVM (brew install llvm on macOS, apt-get install clang on Linux) or specify options.clangBin.\nDetails: ${err?.message || err}`);
-        }
-        try {
-          await execFileAsync(wasmldBin, ['--version']);
-        } catch (err: any) {
-          throw new Error(`nimts: wasm-ld linker not found at "${wasmldBin}". Please install lld (brew install llvm or brew install lld) or specify options.wasmldBin.\nDetails: ${err?.message || err}`);
-        }
-        try {
-          await fs.access(sysroot);
-        } catch (_) {
-          throw new Error(`nimts: WASI sysroot not found at "${sysroot}". Please install wasi-libc (brew install wasi-libc on macOS, apt-get install wasi-libc on Linux) or specify options.sysroot.`);
+
+        if (backend === 'emscripten') {
+          try {
+            await execFileAsync(emccBin, ['--version']);
+          } catch (err: any) {
+            throw new Error(`nimts: emcc (Emscripten compiler) not found at "${emccBin}". To use backend: 'emscripten', install Emscripten SDK (emsdk) or specify options.emccBin.\nDetails: ${err?.message || err}`);
+          }
+        } else {
+          try {
+            await execFileAsync(clangBin, ['--version']);
+          } catch (err: any) {
+            throw new Error(`nimts: Clang / LLVM not found at "${clangBin}". Please install LLVM (brew install llvm on macOS, apt-get install clang on Linux) or specify options.clangBin.\nDetails: ${err?.message || err}`);
+          }
+          try {
+            await execFileAsync(wasmldBin, ['--version']);
+          } catch (err: any) {
+            throw new Error(`nimts: wasm-ld linker not found at "${wasmldBin}". Please install lld (brew install llvm or brew install lld) or specify options.wasmldBin.\nDetails: ${err?.message || err}`);
+          }
+          try {
+            await fs.access(sysroot);
+          } catch (_) {
+            throw new Error(`nimts: WASI sysroot not found at "${sysroot}". Please install wasi-libc (brew install wasi-libc on macOS, apt-get install wasi-libc on Linux) or specify options.sysroot.`);
+          }
         }
 
         // Compile Nim to C
@@ -130,68 +144,93 @@ export function nimtsPlugin(options: NimTsPluginOptions = {}): Plugin {
         }
         const includeFlags = nimLib ? [`-I${nimLib}`] : [];
 
-        // Compile generated C files to wasm objects
-        const cFiles = (await fs.readdir(nimcacheDir)).filter(f => f.endsWith('.c'));
-        const objFiles: string[] = [];
-
-        for (const cFile of cFiles) {
-          const cPath = path.resolve(nimcacheDir, cFile);
-          const objPath = path.resolve(nimcacheDir, `${cFile}.o`);
-          objFiles.push(objPath);
-
-          await execFileAsync(clangBin, [
-            '--target=wasm32-wasip1',
-            `--sysroot=${sysroot}`,
-            '-D_WASI_EMULATED_MMAN',
-            '-D_WASI_EMULATED_SIGNAL',
-            '-O3',
-            '-flto',
-            '-mbulk-memory',
-            ...includeFlags,
-            '-c',
-            '-o', objPath,
-            cPath
-          ]);
-        }
-
-        // Compile builtins_wasm.c if available
-        const builtinsPath = path.resolve(__dirname, '../c_src/builtins_wasm.c');
-        try {
-          await fs.access(builtinsPath);
-          const builtinsObj = path.resolve(nimcacheDir, 'builtins_wasm.o');
-          await execFileAsync(clangBin, [
-            '--target=wasm32-wasip1',
-            `--sysroot=${sysroot}`,
-            '-O3',
-            '-flto',
-            '-mbulk-memory',
-            '-c',
-            '-o', builtinsObj,
-            builtinsPath
-          ]);
-          objFiles.push(builtinsObj);
-        } catch (_) {
-          // builtins_wasm.c optional if sysroot provides compiler-rt
-        }
-
-        // Link with wasm-ld
-        await execFileAsync(wasmldBin, [
-          '--no-entry',
-          '--export-all',
-          '--allow-undefined',
-          '--lto-O3',
-          `-L${sysroot}/lib/wasm32-wasip1`,
-          '-lc',
-          '-lwasi-emulated-mman',
-          '-lwasi-emulated-signal',
-          '-o', wasmOutPath,
-          ...objFiles
-        ]);
-
-        // Copy wasm to public/wasm for browser dev server
         const publicWasmDir = path.resolve(config.root || '.', options.publicDir || 'public/wasm');
         await fs.mkdir(publicWasmDir, { recursive: true });
-        await fs.copyFile(wasmOutPath, path.resolve(publicWasmDir, `${baseName}.wasm`));
+
+        if (backend === 'emscripten') {
+          const emccOutJs = path.resolve(cacheDir, `${baseName}.emscripten.js`);
+          const cFiles = (await fs.readdir(nimcacheDir)).filter(f => f.endsWith('.c'));
+          const emccArgs = [
+            '-O3',
+            '-sEXPORT_ALL=1',
+            '-sMODULARIZE=1',
+            '-sEXPORT_ES6=1',
+            '-sALLOW_MEMORY_GROWTH=1',
+            '-sFORCE_FILESYSTEM=1',
+            ...includeFlags,
+            ...(options.emccFlags || []),
+            '-o', emccOutJs,
+            ...cFiles.map(f => path.resolve(nimcacheDir, f))
+          ];
+          await execFileAsync(emccBin, emccArgs);
+
+          const emccWasm = path.resolve(cacheDir, `${baseName}.emscripten.wasm`);
+          try {
+            await fs.copyFile(emccWasm, wasmOutPath);
+            await fs.copyFile(emccWasm, path.resolve(publicWasmDir, `${baseName}.wasm`));
+          } catch (_) {}
+        } else {
+          // Compile generated C files to wasm objects
+          const cFiles = (await fs.readdir(nimcacheDir)).filter(f => f.endsWith('.c'));
+          const objFiles: string[] = [];
+
+          for (const cFile of cFiles) {
+            const cPath = path.resolve(nimcacheDir, cFile);
+            const objPath = path.resolve(nimcacheDir, `${cFile}.o`);
+            objFiles.push(objPath);
+
+            await execFileAsync(clangBin, [
+              '--target=wasm32-wasip1',
+              `--sysroot=${sysroot}`,
+              '-D_WASI_EMULATED_MMAN',
+              '-D_WASI_EMULATED_SIGNAL',
+              '-O3',
+              '-flto',
+              '-mbulk-memory',
+              ...includeFlags,
+              '-c',
+              '-o', objPath,
+              cPath
+            ]);
+          }
+
+          // Compile builtins_wasm.c if available
+          const builtinsPath = path.resolve(__dirname, '../c_src/builtins_wasm.c');
+          try {
+            await fs.access(builtinsPath);
+            const builtinsObj = path.resolve(nimcacheDir, 'builtins_wasm.o');
+            await execFileAsync(clangBin, [
+              '--target=wasm32-wasip1',
+              `--sysroot=${sysroot}`,
+              '-O3',
+              '-flto',
+              '-mbulk-memory',
+              '-c',
+              '-o', builtinsObj,
+              builtinsPath
+            ]);
+            objFiles.push(builtinsObj);
+          } catch (_) {
+            // builtins_wasm.c optional if sysroot provides compiler-rt
+          }
+
+          // Link with wasm-ld
+          await execFileAsync(wasmldBin, [
+            '--no-entry',
+            '--export-all',
+            '--allow-undefined',
+            '--lto-O3',
+            `-L${sysroot}/lib/wasm32-wasip1`,
+            '-lc',
+            '-lwasi-emulated-mman',
+            '-lwasi-emulated-signal',
+            '-o', wasmOutPath,
+            ...objFiles
+          ]);
+
+          // Copy wasm to public/wasm for browser dev server
+          await fs.copyFile(wasmOutPath, path.resolve(publicWasmDir, `${baseName}.wasm`));
+        }
       }
 
       // Read generated JS glue code
@@ -204,7 +243,19 @@ export function nimtsPlugin(options: NimTsPluginOptions = {}): Plugin {
           jsContent = await fs.readFile(fileDirJs, 'utf-8');
         } catch (__) {
           // Fallback default JS glue if static emit was not called
-          jsContent = `
+          if (backend === 'emscripten') {
+            jsContent = `
+import createModule from './${baseName}.emscripten.js';
+import { NimTsRuntime } from 'nimts/runtime';
+const runtime = new NimTsRuntime();
+export async function initNimTs(opts = {}) {
+  const emModule = await createModule(opts);
+  return emModule;
+}
+export { createModule, runtime };
+`;
+          } else {
+            jsContent = `
 import { NimTsRuntime } from 'nimts/runtime';
 const runtime = new NimTsRuntime();
 export async function initNimTs(opts = {}) {
@@ -213,6 +264,7 @@ export async function initNimTs(opts = {}) {
 }
 export { runtime };
 `;
+          }
         }
       }
 

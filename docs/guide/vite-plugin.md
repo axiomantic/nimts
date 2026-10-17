@@ -44,8 +44,10 @@ console.log(greet("Browser"));
 
 `nimtsPlugin(options)` accepts the following configuration:
 
-```typescript
 export interface NimTsPluginOptions {
+  /** Compilation backend: 'standalone' (default: clang + wasm-ld) or 'emscripten' (emcc) */
+  backend?: 'standalone' | 'emscripten';
+
   /** Path to the nim compiler executable (default: 'nim' or process.env.NIM_BIN) */
   nimBin?: string;
 
@@ -57,6 +59,12 @@ export interface NimTsPluginOptions {
 
   /** Path to wasi-sysroot directory */
   sysroot?: string;
+
+  /** Path to emcc executable when using backend: 'emscripten' (default: 'emcc') */
+  emccBin?: string;
+
+  /** Additional flags passed to emcc when using backend: 'emscripten' */
+  emccFlags?: string[];
 
   /** Additional flags passed to the Nim compiler, e.g. ['-d:danger', '--opt:speed'] */
   extraNimFlags?: string[];

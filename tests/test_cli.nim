@@ -17,9 +17,17 @@ suite "NimTS CLI Executable":
     check exitCode == 0
     check output.contains("Usage:")
     check output.contains("compile <input.nim>")
+    check output.contains("--backend:standalone")
+    check output.contains("--backend:emscripten")
     check output.contains("version")
 
   test "nimts compile without arguments exits with error code 1":
     let (output, exitCode) = execCmdEx("nim r -p:src src/nimts.nim compile")
     check exitCode == 1
     check output.contains("Error: 'nimts compile' requires an input .nim file")
+
+  test "nimts compile with invalid backend exits with error code 1":
+    let (output, exitCode) = execCmdEx("nim r -p:src src/nimts.nim compile --backend:invalid input.nim")
+    check exitCode == 1
+    check output.contains("Error: Unknown backend 'invalid'")
+    check output.contains("Supported backends are 'standalone' (default) and 'emscripten'")

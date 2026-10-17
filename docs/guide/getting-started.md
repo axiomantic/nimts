@@ -103,18 +103,26 @@ static:
   emitTsGlueFiles("synth", ".")
 ```
 
-### Step 2: Compile to Standalone WebAssembly
+### Step 2: Compile to WebAssembly (Choosing Your Backend)
 
-Compile the Nim file into a standalone `.wasm` binary:
+Compile the Nim file into a WebAssembly binary. You can choose between two compilation backends depending on your deployment target:
 
 ```bash
+# 1. Standalone micro-WASM (Default)
+# Uses LLVM clang + wasm-ld + wasi-sysroot. Produces minimal, zero-bloat WASM
+# ideal for AudioWorklets, Web Workers, and lightweight web apps:
 nimts compile synth.nim synth.wasm
+
+# 2. Emscripten Runtime Backend
+# Uses emcc with virtual filesystem (FS), POSIX shims, and modularized ES6 output.
+# Ideal if your code depends on legacy C libraries expecting file I/O or full POSIX libc:
+nimts compile synth.nim synth.wasm --backend:emscripten
 ```
 
 This generates:
-- `synth.wasm`: Standalone WebAssembly binary.
+- `synth.wasm`: WebAssembly binary.
 - `synth.d.ts`: Full TypeScript type declarations for all exported types and functions.
-- `synth.js`: Modern ES module with memory allocation, handle tracking, and promise bridging.
+- `synth.js`: Modern ES module with memory allocation, handle tracking, and promise bridging (identical TypeScript interface across both backends).
 
 ### Step 3: Consume in TypeScript
 
