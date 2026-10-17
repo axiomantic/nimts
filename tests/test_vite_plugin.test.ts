@@ -96,5 +96,25 @@ describe('Vite Plugin (vite-plugin-nimts)', () => {
       const res = await load.call({}, '/path/to/app.tsx');
       expect(res).toBeNull();
     });
+
+    it('compiles a real .nim file to WebAssembly and returns JS glue code', async () => {
+      const plugin = nimtsPlugin({
+        clangBin: process.env.CLANG_BIN || '/opt/homebrew/opt/llvm/bin/clang',
+        wasmldBin: process.env.WASM_LD_BIN || '/opt/homebrew/bin/wasm-ld',
+        sysroot: process.env.WASI_SYSROOT || '/opt/homebrew/share/wasi-sysroot'
+      });
+      if (typeof plugin.configResolved === 'function') {
+        (plugin.configResolved as any)({ root: path.resolve(__dirname, '..') });
+      }
+      const load = plugin.load as Function;
+      const fixturePath = path.resolve(__dirname, 'fixtures/test_module.nim');
+      const res = await load.call({}, fixturePath);
+
+      expect(res).toBeDefined();
+      expect(res.code).toBeDefined();
+      expect(res.code).toContain('initNimTs');
+      expect(res.code).toContain('addNumbers');
+      expect(res.code).toContain('createEngine');
+    });
   });
 });

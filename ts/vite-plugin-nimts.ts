@@ -6,6 +6,10 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const execFileAsync = promisify(execFile);
 
@@ -14,6 +18,7 @@ export interface NimTsPluginOptions {
   clangBin?: string;
   wasmldBin?: string;
   sysroot?: string;
+  nimLib?: string;
   extraNimFlags?: string[];
   outDir?: string;
   publicDir?: string;
@@ -93,6 +98,18 @@ export function nimtsPlugin(options: NimTsPluginOptions = {}): Plugin {
 
         await execFileAsync(nimBin, nimArgs);
 
+        // Detect Nim lib directory for headers (nimbase.h)
+        let nimLib = options.nimLib || process.env.NIM_LIB;
+        if (!nimLib) {
+          try {
+            const { stdout, stderr } = await execFileAsync(nimBin, ['dump']);
+            const dumpOutput = (stdout || '') + '\n' + (stderr || '');
+            const match = dumpOutput.split('\n').map(l => l.trim()).find(l => l.endsWith('/lib') || l.endsWith('\\lib') || l === 'lib');
+            if (match) nimLib = match;
+          } catch (_) {}
+        }
+        const includeFlags = nimLib ? [`-I${nimLib}`] : [];
+
         // Compile generated C files to wasm objects
         const cFiles = (await fs.readdir(nimcacheDir)).filter(f => f.endsWith('.c'));
         const objFiles: string[] = [];
@@ -110,6 +127,7 @@ export function nimtsPlugin(options: NimTsPluginOptions = {}): Plugin {
             '-O3',
             '-flto',
             '-mbulk-memory',
+            ...includeFlags,
             '-c',
             '-o', objPath,
             cPath
@@ -161,8 +179,12 @@ export function nimtsPlugin(options: NimTsPluginOptions = {}): Plugin {
       try {
         jsContent = await fs.readFile(jsOutPath, 'utf-8');
       } catch (_) {
-        // Fallback default JS glue if static emit was not called
-        jsContent = `
+        try {
+          const fileDirJs = path.resolve(fileDir, `${baseName}.js`);
+          jsContent = await fs.readFile(fileDirJs, 'utf-8');
+        } catch (__) {
+          // Fallback default JS glue if static emit was not called
+          jsContent = `
 import { NimTsRuntime } from 'nimts/runtime';
 const runtime = new NimTsRuntime();
 export async function initNimTs(opts = {}) {
@@ -171,6 +193,7 @@ export async function initNimTs(opts = {}) {
 }
 export { runtime };
 `;
+        }
       }
 
       return {

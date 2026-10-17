@@ -19,4 +19,8 @@ tests/test_*
 docs/.vitepress/dist/
 docs/.vitepress/cache/
 
+# Vite public output
+public/
+
+
 
