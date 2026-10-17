@@ -29,13 +29,21 @@ const synthNode = new AudioWorkletNode(audioContext, 'dsp-processor', {
 
 ---
 
-## AudioWorklet Processor Pattern
+## AudioWorklet Synchronous Initialization Pattern
+
+AudioWorklet processors execute within an `AudioWorkletGlobalScope` where:
+1. Processors are instantiated synchronously in the worklet thread constructor before the audio render loop starts.
+2. Standard Web APIs like `fetch`, and in many browser engines `TextEncoder` and `TextDecoder`, are undefined or restricted.
+
+NimTS solves both constraints out of the box:
+- **`initNimTsSync({ wasmModule })`**: Instantiates synchronously via `new WebAssembly.Instance(wasmModule, importObject)`, calling `NimMain()` and `nimts_init()` synchronously so exports are immediately ready for `process()`.
+- **Pure-JS UTF-8 Fallbacks**: All string marshaling automatically falls back to bundled pure-JS UTF-8 encode and decode functions when `TextEncoder` or `TextDecoder` are absent in `AudioWorkletGlobalScope`, eliminating `ReferenceError` crashes.
 
 In your audio worklet processor script:
 
 ```typescript
 // dsp-processor.ts
-import { initNimTs, processAudioBlock } from './engine.js';
+import { initNimTsSync, processAudioBlock } from './engine.js';
 
 class NimDspProcessor extends AudioWorkletProcessor {
   private initialized = false;
@@ -43,9 +51,9 @@ class NimDspProcessor extends AudioWorkletProcessor {
   constructor(options: AudioWorkletNodeOptions) {
     super();
 
-    // Initialize synchronously from the pre-compiled WebAssembly.Module
+    // Synchronous instantiation guaranteed before the first process() render block
     if (options.processorOptions?.wasmModule) {
-      initNimTs({ wasmModule: options.processorOptions.wasmModule });
+      initNimTsSync({ wasmModule: options.processorOptions.wasmModule });
       this.initialized = true;
     }
   }
@@ -65,4 +73,4 @@ class NimDspProcessor extends AudioWorkletProcessor {
 registerProcessor('dsp-processor', NimDspProcessor);
 ```
 
-Because `initNimTs` accepts `wasmModule: WebAssembly.Module`, the AudioWorklet initializes instantly without any network requests or thread-blocking buffer compilation.
+Because `initNimTsSync` accepts `wasmModule: WebAssembly.Module`, the AudioWorklet initializes synchronously without network calls, microtask scheduling races, or buffer compilation delays.

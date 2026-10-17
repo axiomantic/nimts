@@ -34,11 +34,70 @@ export interface NimTsChannel<T> extends AsyncIterable<T> {
   [Symbol.asyncIterator](): AsyncIterator<T>;
 }
 
+export interface NimTsOptions {
+  wasmPath?: string | URL;
+  wasmModule?: WebAssembly.Module;
+  wasmBytes?: BufferSource;
+  wasmInstance?: WebAssembly.Instance;
+  imports?: WebAssembly.Imports;
+}
+
+const _globalTextDecoder = typeof TextDecoder !== 'undefined' ? new TextDecoder('utf-8') : null;
+const _globalTextEncoder = typeof TextEncoder !== 'undefined' ? new TextEncoder() : null;
+
+function _utf8Decode(bytes: Uint8Array): string {
+  let str = '';
+  let i = 0;
+  while (i < bytes.length) {
+    const b1 = bytes[i++];
+    if (b1 < 0x80) {
+      str += String.fromCharCode(b1);
+    } else if (b1 > 0xbf && b1 < 0xe0) {
+      const b2 = bytes[i++];
+      str += String.fromCharCode(((b1 & 0x1f) << 6) | (b2 & 0x3f));
+    } else if (b1 > 0xdf && b1 < 0xf0) {
+      const b2 = bytes[i++];
+      const b3 = bytes[i++];
+      str += String.fromCharCode(((b1 & 0x0f) << 12) | ((b2 & 0x3f) << 6) | (b3 & 0x3f));
+    } else {
+      const b2 = bytes[i++];
+      const b3 = bytes[i++];
+      const b4 = bytes[i++];
+      let cp = ((b1 & 0x07) << 18) | ((b2 & 0x3f) << 12) | ((b3 & 0x3f) << 6) | (b4 & 0x3f);
+      cp -= 0x10000;
+      str += String.fromCharCode((cp >> 10) + 0xd800, (cp & 0x3ff) + 0xdc00);
+    }
+  }
+  return str;
+}
+
+function _utf8Encode(str: string): Uint8Array {
+  const bytes: number[] = [];
+  for (let i = 0; i < str.length; i++) {
+    let cp = str.charCodeAt(i);
+    if (cp >= 0xd800 && cp <= 0xdbff && i + 1 < str.length) {
+      const next = str.charCodeAt(i + 1);
+      if (next >= 0xdc00 && next <= 0xdfff) {
+        cp = 0x10000 + ((cp - 0xd800) << 10) + (next - 0xdc00);
+        i++;
+      }
+    }
+    if (cp < 0x80) {
+      bytes.push(cp);
+    } else if (cp < 0x800) {
+      bytes.push(0xc0 | (cp >> 6), 0x80 | (cp & 0x3f));
+    } else if (cp < 0x10000) {
+      bytes.push(0xe0 | (cp >> 12), 0x80 | ((cp >> 6) & 0x3f), 0x80 | (cp & 0x3f));
+    } else {
+      bytes.push(0xf0 | (cp >> 18), 0x80 | ((cp >> 12) & 0x3f), 0x80 | ((cp >> 6) & 0x3f), 0x80 | (cp & 0x3f));
+    }
+  }
+  return new Uint8Array(bytes);
+}
+
 export class NimTsRuntime {
   public instance: WebAssembly.Instance | null = null;
   public exports: NimTsExports | null = null;
-  private textDecoder = new TextDecoder('utf-8');
-  private textEncoder = new TextEncoder();
   private pendingPromises = new Map<number, { resolve: (val: any) => void; reject: (err: any) => void }>();
 
   public getMemory(): WebAssembly.Memory {
@@ -48,7 +107,8 @@ export class NimTsRuntime {
 
   public readString(ptr: number, len: number): string {
     if (!ptr || len <= 0) return '';
-    return this.textDecoder.decode(new Uint8Array(this.getMemory().buffer, ptr, len));
+    const bytes = new Uint8Array(this.getMemory().buffer, ptr, len);
+    return _globalTextDecoder ? _globalTextDecoder.decode(bytes) : _utf8Decode(bytes);
   }
 
   public readBytes(ptr: number, len: number): Uint8Array {
@@ -58,7 +118,7 @@ export class NimTsRuntime {
 
   public passString(str: string): { ptr: number; len: number } {
     if (!this.exports) throw new Error('nimts module not initialized.');
-    const encoded = this.textEncoder.encode(str);
+    const encoded = _globalTextEncoder ? _globalTextEncoder.encode(str) : _utf8Encode(str);
     const ptr = this.exports.nimts_alloc(encoded.length + 1);
     new Uint8Array(this.getMemory().buffer, ptr, encoded.length).set(encoded);
     return { ptr, len: encoded.length };
@@ -168,6 +228,59 @@ export class NimTsRuntime {
         console.warn('[NimTsRuntime] NimMain error:', e);
       }
     }
+    if (typeof (this.exports as any).nimts_init === 'function') {
+      try {
+        (this.exports as any).nimts_init();
+      } catch (e) {
+        console.warn('[NimTsRuntime] nimts_init error:', e);
+      }
+    }
+    return this.exports;
+  }
+
+  public initSync(options: NimTsOptions | WebAssembly.Module | WebAssembly.Instance): NimTsExports {
+    if (this.exports) return this.exports;
+
+    let actualInstance: WebAssembly.Instance | null = null;
+    let importObj = this.createImportObject();
+
+    if (options instanceof WebAssembly.Instance) {
+      actualInstance = options;
+    } else if (options instanceof WebAssembly.Module) {
+      actualInstance = new WebAssembly.Instance(options, importObj);
+    } else if (options && typeof options === 'object') {
+      if (options.imports) {
+        importObj = { ...importObj, ...options.imports };
+      }
+      if (options.wasmInstance) {
+        actualInstance = options.wasmInstance;
+      } else if (options.wasmModule) {
+        actualInstance = new WebAssembly.Instance(options.wasmModule, importObj);
+      }
+    }
+
+    if (!actualInstance) {
+      throw new Error('initSync requires options.wasmModule (compiled WebAssembly.Module) or options.wasmInstance');
+    }
+
+    this.instance = actualInstance;
+    this.exports = actualInstance.exports as unknown as NimTsExports;
+
+    if (typeof (this.exports as any).NimMain === 'function') {
+      try {
+        (this.exports as any).NimMain();
+      } catch (e) {
+        console.warn('[NimTsRuntime] NimMain error:', e);
+      }
+    }
+    if (typeof (this.exports as any).nimts_init === 'function') {
+      try {
+        (this.exports as any).nimts_init();
+      } catch (e) {
+        console.warn('[NimTsRuntime] nimts_init error:', e);
+      }
+    }
+
     return this.exports;
   }
 }
