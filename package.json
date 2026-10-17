@@ -8,15 +8,18 @@
   "exports": {
     ".": {
       "import": "./dist/index.js",
-      "types": "./dist/index.d.ts"
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
     },
     "./vite": {
       "import": "./dist/vite-plugin-nimts.js",
-      "types": "./dist/vite-plugin-nimts.d.ts"
+      "types": "./dist/vite-plugin-nimts.d.ts",
+      "default": "./dist/vite-plugin-nimts.js"
     },
     "./runtime": {
       "import": "./dist/runtime.js",
-      "types": "./dist/runtime.d.ts"
+      "types": "./dist/runtime.d.ts",
+      "default": "./dist/runtime.js"
     }
   },
   "files": [
@@ -30,6 +33,8 @@
   ],
   "scripts": {
     "build": "tsc",
+    "compile:fixtures": "./scripts/compile_wasm.sh tests/fixtures/test_module.nim tests/fixtures/test_module.wasm tests/fixtures/nimcache",
+    "pretest": "npm run compile:fixtures",
     "test": "vitest run",
     "test:watch": "vitest",
     "docs:dev": "vitepress dev docs",
