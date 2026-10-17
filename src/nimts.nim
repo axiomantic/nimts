@@ -38,7 +38,7 @@ when isMainModule:
     echo "  version, -v, --version                        Display the NimTS version"
     echo "  help, -h, --help                              Display this help message"
     echo ""
-    echo "For Vite applications, use 'nimts/vite' to import .nim files directly."
+    echo "For Vite applications, use '@axiomantic/nimts/vite' to import .nim files directly."
 
   let args = commandLineParams()
   if args.len == 0 or args[0] in ["-h", "--help", "help"]:

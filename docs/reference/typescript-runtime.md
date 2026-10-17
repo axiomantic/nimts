@@ -53,12 +53,12 @@ export interface NimTsOptions {
 
 ---
 
-## `NimTsRuntime` Class (`nimts/runtime`)
+## `NimTsRuntime` Class (`@axiomantic/nimts/runtime`)
 
 The low-level runtime class used internally by generated wrappers:
 
 ```typescript
-import { NimTsRuntime } from 'nimts/runtime';
+import { NimTsRuntime } from '@axiomantic/nimts/runtime';
 
 const runtime = new NimTsRuntime();
 await runtime.init(wasmSource);

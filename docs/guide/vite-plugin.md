@@ -10,7 +10,7 @@ In your `vite.config.ts`:
 
 ```typescript
 import { defineConfig } from 'vite';
-import { nimtsPlugin } from 'nimts/vite';
+import { nimtsPlugin } from '@axiomantic/nimts/vite';
 
 export default defineConfig({
   plugins: [

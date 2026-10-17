@@ -252,7 +252,7 @@ export function nimtsPlugin(options: NimTsPluginOptions = {}): Plugin {
           if (backend === 'emscripten') {
             jsContent = `
 import createModule from './${baseName}.emscripten.js';
-import { NimTsRuntime } from 'nimts/runtime';
+import { NimTsRuntime } from '@axiomantic/nimts/runtime';
 const runtime = new NimTsRuntime();
 export async function initNimTs(opts = {}) {
   const emModule = await createModule(opts);
@@ -262,7 +262,7 @@ export { createModule, runtime };
 `;
           } else {
             jsContent = `
-import { NimTsRuntime } from 'nimts/runtime';
+import { NimTsRuntime } from '@axiomantic/nimts/runtime';
 const runtime = new NimTsRuntime();
 export async function initNimTs(opts = {}) {
   await runtime.init({ wasmPath: '/wasm/${baseName}.wasm', ...opts });

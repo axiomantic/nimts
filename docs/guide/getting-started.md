@@ -43,12 +43,12 @@ nimble install nimts
 ### In Your TypeScript / Frontend Project (npm)
 
 ```bash
-npm install nimts
+npm install @axiomantic/nimts
 ```
 
 > [!TIP]
 > **Which do you need?**
-> - **Full-Stack / Vite App (Most Common)**: You will use **both**. `nimble install nimts` installs the Nim macros, types, and compiler tools; `npm install nimts` provides the Vite plugin (`nimts/vite`) and runtime loader (`nimts/runtime`).
+> - **Full-Stack / Vite App (Most Common)**: You will use **both**. `nimble install nimts` installs the Nim macros, types, and compiler tools; `npm install @axiomantic/nimts` provides the Vite plugin (`@axiomantic/nimts/vite`) and runtime loader (`@axiomantic/nimts/runtime`).
 > - **Nim Library Author**: If you are writing a Nim library that generates `.wasm` and `.d.ts` bundles for JavaScript users, you need `nimble install nimts` during development. When ready, you run `npm publish` to publish the resulting JavaScript/TypeScript artifacts to npm.
 > - **Pure TypeScript Consumer**: If you are consuming a pre-compiled NimTS package published by someone else on npm, you only need `npm install <their-package>`.
 

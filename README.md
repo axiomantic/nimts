@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/axiomantic/nimts/actions/workflows/ci.yml/badge.svg)](https://github.com/axiomantic/nimts/actions/workflows/ci.yml)
 [![Documentation](https://img.shields.io/badge/docs-GitHub_Pages-blue.svg)](https://axiomantic.github.io/nimts/)
-[![npm version](https://img.shields.io/npm/v/nimts.svg)](https://www.npmjs.com/package/nimts)
+[![npm version](https://img.shields.io/npm/v/@axiomantic/nimts.svg)](https://www.npmjs.com/package/@axiomantic/nimts)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Nimble](https://img.shields.io/badge/nimble-nimts-orange.svg)](https://nimble.directory/)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/axiomantic/nimts/pulls)
@@ -35,10 +35,10 @@ nimble install nimts
 
 ### In your TypeScript / Vite project (npm)
 ```bash
-npm install nimts
+npm install @axiomantic/nimts
 ```
 
-> **Note**: For full-stack applications (e.g. Vite + React/Vue with `.nim` source files), install **both**: Nimble provides the compiler tools & macros, while npm provides the Vite plugin (`nimts/vite`) and runtime (`nimts/runtime`).
+> **Note**: For full-stack applications (e.g. Vite + React/Vue with `.nim` source files), install **both**: Nimble provides the compiler tools & macros, while npm provides the Vite plugin (`@axiomantic/nimts/vite`) and runtime (`@axiomantic/nimts/runtime`).
 
 
 ---
@@ -198,7 +198,7 @@ Import `.nim` files directly in your Vite application:
 ```typescript
 // vite.config.ts
 import { defineConfig } from 'vite';
-import { nimtsPlugin } from 'nimts/vite';
+import { nimtsPlugin } from '@axiomantic/nimts/vite';
 
 export default defineConfig({
   plugins: [
