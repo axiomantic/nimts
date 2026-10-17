@@ -6,10 +6,11 @@ import std/json
 import types
 
 type
+  HandleDestructor = proc(raw: pointer) {.nimcall.}
   HandleEntry = object
     rawPtr: pointer
     typeName: string
-    destructor: proc(raw: pointer)
+    destructor: HandleDestructor
 
 var
   gNimTsInitialized* = false
@@ -30,8 +31,6 @@ proc ensureNimTsInit*() {.inline.} =
 
 proc nimts_init*() {.exportc: "nimts_init", cdecl.} =
   ensureNimTsInit()
-
-gNimTsInitialized = true
 
 proc nimts_alloc*(size: int32): pointer {.exportc: "nimts_alloc", cdecl.} =
   if size <= 0: return nil
@@ -98,6 +97,17 @@ proc readBytes*(p: ptr uint8, len: int32): seq[byte] =
   result = newSeq[byte](len)
   copyMem(addr result[0], p, len)
 
+proc defaultHandleDestructor[T: ref object](raw: pointer) {.nimcall.} =
+  if raw != nil:
+    let typedObj = cast[T](raw)
+    GC_unref(typedObj)
+
+proc iterHandleDestructor(raw: pointer) {.nimcall.} =
+  if raw != nil:
+    let typedObj = cast[ClosureIterSlotBase](raw)
+    typedObj.finished = true
+    GC_unref(typedObj)
+
 proc registerHandle*[T: ref object](obj: T): HandleId =
   if obj.isNil: return InvalidHandleId
   result = gHandleCounter
@@ -108,9 +118,7 @@ proc registerHandle*[T: ref object](obj: T): HandleId =
   gHandleTable[result] = HandleEntry(
     rawPtr: p,
     typeName: tName,
-    destructor: proc(raw: pointer) =
-      let typedObj = cast[T](raw)
-      GC_unref(typedObj)
+    destructor: defaultHandleDestructor[T]
   )
 
 proc getHandle*[T: ref object](h: HandleId): T =
@@ -142,27 +150,30 @@ proc releaseHandle*(h: HandleId) =
 proc nimts_destroy_handle*(h: HandleId) {.exportc: "nimts_destroy_handle", cdecl.} =
   releaseHandle(h)
 
+proc iterStepHelper[T](selfBase: ClosureIterSlotBase): uint64 {.nimcall.} =
+  if selfBase.isNil: return 0'u64
+  let slot = cast[ClosureIterSlot[T]](selfBase)
+  if slot.finished or slot.iter.isNil:
+    slot.finished = true
+    return 0'u64
+  let val = slot.iter()
+  if finished(slot.iter):
+    slot.finished = true
+    return 0'u64
+  when T is (SomeInteger or SomeFloat or bool or char):
+    return allocPrimitiveResult(val)
+  elif T is string:
+    return allocStringResult(val)
+  elif T is (seq[byte] or seq[uint8]):
+    return allocBytesResult(val)
+  elif T is ref object:
+    let h = registerHandle(val)
+    return allocPrimitiveResult(h)
+  else:
+    return allocStringResult($(%*(val)))
+
 proc createClosureIterSlot*[T](it: iterator(): T {.closure.}): ClosureIterSlot[T] =
-  let slot = ClosureIterSlot[T](iter: it, finished: false)
-  slot.step = proc(): uint64 =
-    if slot.finished or slot.iter.isNil:
-      slot.finished = true
-      return 0'u64
-    let val = slot.iter()
-    if finished(slot.iter):
-      slot.finished = true
-      return 0'u64
-    when T is (SomeInteger or SomeFloat or bool or char):
-      return allocPrimitiveResult(val)
-    elif T is string:
-      return allocStringResult(val)
-    elif T is (seq[byte] or seq[uint8]):
-      return allocBytesResult(val)
-    elif T is ref object:
-      let h = registerHandle(val)
-      return allocPrimitiveResult(h)
-    else:
-      return allocStringResult($(%*(val)))
+  let slot = ClosureIterSlot[T](iter: it, finished: false, stepProc: iterStepHelper[T])
   return slot
 
 proc registerIterSlot*(slot: ClosureIterSlotBase): HandleId =
@@ -173,10 +184,7 @@ proc registerIterSlot*(slot: ClosureIterSlotBase): HandleId =
   gHandleTable[result] = HandleEntry(
     rawPtr: cast[pointer](slot),
     typeName: "ClosureIterSlot",
-    destructor: proc(raw: pointer) =
-      let typedObj = cast[ClosureIterSlotBase](raw)
-      typedObj.finished = true
-      GC_unref(typedObj)
+    destructor: iterHandleDestructor
   )
 
 proc getIterHandle*(h: HandleId): ClosureIterSlotBase =
@@ -194,9 +202,9 @@ proc newNimTsIterator*[T](it: iterator(): T {.closure.}): NimTsIterator[T] =
 
 proc nimts_iter_next*(h: HandleId): uint64 {.exportc: "nimts_iter_next", cdecl.} =
   let slot = getIterHandle(h)
-  if slot.isNil or slot.finished:
+  if slot.isNil or slot.finished or slot.stepProc == nil:
     return 0'u64
-  let res = slot.step()
+  let res = slot.stepProc(slot)
   if slot.finished:
     releaseHandle(h)
   return res

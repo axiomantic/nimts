@@ -121,6 +121,7 @@ export function nimtsPlugin(options: NimTsPluginOptions = {}): Plugin {
           'c',
           '-c',
           '-d:emscripten',
+          '-d:useMalloc',
           '-d:release',
           '--opt:speed',
           '--cpu:wasm32',

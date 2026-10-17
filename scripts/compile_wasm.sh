@@ -129,6 +129,8 @@ if [[ -z "${WASI_SYSROOT:-}" ]]; then
     WASI_SYSROOT="/opt/homebrew/share/wasi-sysroot"
   elif [[ -d "/usr/share/wasi-sysroot" ]]; then
     WASI_SYSROOT="/usr/share/wasi-sysroot"
+  elif [[ -d "/opt/wasi-sysroot" ]]; then
+    WASI_SYSROOT="/opt/wasi-sysroot"
   else
     WASI_SYSROOT=""
   fi
@@ -145,7 +147,7 @@ if [[ -z "${WASM_LD_BIN}" || ! -x "${WASM_LD_BIN}" ]]; then
 fi
 
 echo "==> [Backend: Standalone] 1. Generating C sources from ${INPUT_NIM} via Nim..."
-nim c -c -d:emscripten -d:release --opt:speed --cpu:wasm32 \
+nim c -c -d:emscripten -d:useMalloc -d:release --opt:speed --cpu:wasm32 \
   -p:"${ROOT_DIR}/src" \
   --nimcache:"${NIMCACHE_DIR}" \
   "${INPUT_NIM}"

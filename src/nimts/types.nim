@@ -11,7 +11,7 @@ type
 
   ClosureIterSlotBase* = ref object of RootObj
     finished*: bool
-    step*: proc(): uint64 {.closure.}
+    stepProc*: proc(self: ClosureIterSlotBase): uint64 {.nimcall.}
 
   ClosureIterSlot*[T] = ref object of ClosureIterSlotBase
     iter*: iterator(): T {.closure.}

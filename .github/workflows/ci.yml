@@ -58,12 +58,21 @@ jobs:
           HOMEBREW_NO_AUTO_UPDATE: 1
           HOMEBREW_NO_INSTALL_CLEANUP: 1
         run: |
-          brew install llvm wasi-sysroot || true
-          echo "/opt/homebrew/opt/llvm/bin" >> $GITHUB_PATH
-          echo "/opt/homebrew/bin" >> $GITHUB_PATH
-          echo "CLANG_BIN=/opt/homebrew/opt/llvm/bin/clang" >> $GITHUB_ENV
-          echo "WASM_LD_BIN=/opt/homebrew/bin/wasm-ld" >> $GITHUB_ENV
-          echo "WASI_SYSROOT=/opt/homebrew/share/wasi-sysroot" >> $GITHUB_ENV
+          brew install llvm lld || true
+          LLVM_PREFIX="$(brew --prefix llvm)"
+          echo "${LLVM_PREFIX}/bin" >> $GITHUB_PATH
+          echo "CLANG_BIN=${LLVM_PREFIX}/bin/clang" >> $GITHUB_ENV
+          if [[ -x "${LLVM_PREFIX}/bin/wasm-ld" ]]; then
+            echo "WASM_LD_BIN=${LLVM_PREFIX}/bin/wasm-ld" >> $GITHUB_ENV
+          else
+            echo "WASM_LD_BIN=$(command -v wasm-ld)" >> $GITHUB_ENV
+          fi
+          WASI_VERSION=22
+          WASI_VERSION_FULL=${WASI_VERSION}.0
+          curl -sSL "https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-${WASI_VERSION}/wasi-sysroot-${WASI_VERSION_FULL}.tar.gz" -o wasi-sysroot.tar.gz
+          sudo mkdir -p /opt
+          sudo tar -xzf wasi-sysroot.tar.gz -C /opt/
+          echo "WASI_SYSROOT=/opt/wasi-sysroot" >> $GITHUB_ENV
 
       - name: Install Node dependencies
         run: npm ci
