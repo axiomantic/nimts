@@ -158,3 +158,14 @@ For all parallel development tracks:
   - *Provider*: `tests/test_audioworklet.test.ts`, `tests/test_wasm_sync_and_async.test.ts`
   - *Verification*: Full Vitest and Nimble suites pass, docs build passes, npm pack dry-run clean.
   - *Weave*: `vine gate && vine weave` [WOVEN]
+
+- [x] **Task 5.4: Cross-Platform WASM Library Memory Hardening** (`nimts-architect`)
+  - *Strand*: `strand/msg_1792267567_nimts-orchestrator_4981`
+  - *Provider*: `scripts/compile_wasm.sh`, `ts/vite-plugin-nimts.ts`, `ts/runtime.ts`
+  - *Defects Addressed*:
+    - Add `--noMain:on` to Nim compilation flags in `scripts/compile_wasm.sh` and `ts/vite-plugin-nimts.ts` to prevent CLI exit destructors in `NimMainModule()` from wiping out global handle and channel tables.
+    - Enable `-d:useMalloc` in `scripts/compile_wasm.sh` for robust WASM heap allocation.
+    - Enhance `wasi_snapshot_preview1` Proxy in `ts/runtime.ts` with `environ_sizes_get`, `args_sizes_get`, and `fd_fdstat_get` zero-byte responders to prevent uninitialized memory reads in `wasi-libc`.
+  - *Verification*: GitHub Actions CI passes 100% green across all 4 OS/Node matrix combinations (Ubuntu/macOS, Node 20/22).
+  - *Weave*: `vine gate && vine weave` [WOVEN]
+
