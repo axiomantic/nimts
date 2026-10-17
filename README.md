@@ -7,7 +7,7 @@
 [![Nimble](https://img.shields.io/badge/nimble-nimts-orange.svg)](https://nimble.directory/)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/axiomantic/nimts/pulls)
 
-**NimTS** is a zero-friction, non-invasive bridge generator connecting **Nim** to **TypeScript** and **WebAssembly (WASM)**.
+**NimTS** is a zero-friction bridge generator connecting **Nim** to **TypeScript** and **WebAssembly (WASM)**.
 
 📖 **Full Documentation & Interactive Guides**: [https://axiomantic.github.io/nimts/](https://axiomantic.github.io/nimts/)
 
@@ -17,7 +17,7 @@ NimTS enables writing high-performance WebAssembly libraries in Nim with natural
 
 ## Key Highlights
 
-- ⚡ **Non-Invasive `{.exportts.}`**: Never perturbs the native Nim signature or behavior of your code. Procs remain 100% callable by native Nim CLI tools, VST/CLAP audio plugins, and native unit tests with zero overhead.
+- ⚡ **Zero-Overhead `{.exportts.}`**: Preserves native Nim signatures and behavior. Procs remain 100% callable by native Nim CLI tools, VST/CLAP audio plugins, and native unit tests with zero overhead.
 - 🔄 **Bidirectional Async Bridge**: Automatically bridges Nim `Future[T]` and JavaScript `Promise<T>` without blocking the main browser thread.
 - 🎛️ **Stateful Handles with GC**: Exports `ref object` instances as type-safe opaque handles with automatic garbage collection via JavaScript's `FinalizationRegistry` and deterministic manual `.dispose()`.
 - 🔁 **Closure Iterators & SPSC Channels**: Stream data from Nim closures as standard ES2015 `IterableIterator<T>` (`for..of`, `[...]`) and lock-free SPSC channels as `AsyncIterable<T>` (`for await..of`).

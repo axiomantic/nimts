@@ -15,7 +15,7 @@ hero:
 
 features:
   - icon: ⚡
-    title: Non-Invasive Exports
+    title: Zero-Overhead Exports
     details: Applying {.exportts.} preserves 100% native Nim signatures. Your procedures remain callable in native CLI tools, VST/CLAP audio plugins, and native unit tests with zero overhead.
   - icon: 🔄
     title: Bidirectional Async Bridge

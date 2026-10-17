@@ -2,7 +2,7 @@
 
 Thank you for your interest in contributing to **NimTS**!
 
-NimTS bridges **Nim** to **TypeScript** and **WebAssembly**, providing seamless non-invasive exports, stateful object handles, asynchronous Future/Promise bridging, and Vite bundling.
+NimTS bridges **Nim** to **TypeScript** and **WebAssembly**, providing seamless zero-overhead exports, stateful object handles, asynchronous Future/Promise bridging, and Vite bundling.
 
 ---
 
