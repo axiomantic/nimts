@@ -133,62 +133,92 @@ proc recv*[T](chan: NimTsChannel[T]): Option[T] =
 # -----------------------------------------------------------------------------
 # C-ABI Handle Registry and Exports for WebAssembly / JS Bridge
 # -----------------------------------------------------------------------------
+# C-ABI Handle Registry and Exports for WebAssembly / JS Bridge
+# -----------------------------------------------------------------------------
 
 type
-  RawByteChannel = NimTsChannel[seq[byte]]
+  NimTsChannelSlot* = ref object
+    chanId*: int32
+    tryRecvProc*: proc(): uint64
+    trySendProc*: proc(dataPtr: pointer, dataLen: int32): int32
+    isClosedProc*: proc(): bool
+    closeProc*: proc()
 
 var
-  gRawChannels = initTable[int32, RawByteChannel]()
+  gChannelSlots = initTable[int32, NimTsChannelSlot]()
   gChanCounter: int32 = 1
 
-proc nimts_chan_create*(capacity: int32 = DefaultChannelCapacity.int32): int32 {.exportc: "nimts_chan_create", cdecl.} =
+proc registerChannel*[T](chan: NimTsChannel[T]): int32 =
+  if chan.isNil: return 0
   let id = gChanCounter
   inc gChanCounter
-  let chan = newNimTsChannel[seq[byte]](DefaultChannelCapacity)
-  gRawChannels[id] = chan
+  GC_ref(chan)
+  let slot = NimTsChannelSlot(
+    chanId: id,
+    tryRecvProc: proc(): uint64 =
+      var item: T
+      if chan.tryRecv(item):
+        when T is (SomeInteger or SomeFloat or bool or char):
+          return allocPrimitiveResult(item)
+        elif T is string:
+          return allocStringResult(item)
+        elif T is (seq[byte] or seq[uint8]):
+          return allocBytesResult(item)
+        elif T is ref object:
+          let h = registerHandle(item)
+          return allocPrimitiveResult(h)
+        else:
+          return allocStringResult($(%*(item)))
+      return 0'u64,
+    trySendProc: proc(dataPtr: pointer, dataLen: int32): int32 =
+      if chan.isClosed(): return -1
+      when T is (SomeInteger or SomeFloat or bool or char):
+        if dataLen >= sizeof(T).int32 and dataPtr != nil:
+          var item: T
+          copyMem(addr item, dataPtr, sizeof(T))
+          return if chan.trySend(item): 1 else: 0
+        return 0
+      elif T is string:
+        let str = readString(cast[ptr char](dataPtr), dataLen)
+        return if chan.trySend(str): 1 else: 0
+      elif T is (seq[byte] or seq[uint8]):
+        let bytes = readBytes(cast[ptr uint8](dataPtr), dataLen)
+        return if chan.trySend(bytes): 1 else: 0
+      else:
+        return 0,
+    isClosedProc: proc(): bool =
+      chan.isClosed(),
+    closeProc: proc() =
+      chan.close()
+  )
+  gChannelSlots[id] = slot
   return id
 
+proc nimts_chan_create*(capacity: int32 = DefaultChannelCapacity.int32): int32 {.exportc: "nimts_chan_create", cdecl.} =
+  let cap = if capacity > 0: capacity.int else: DefaultChannelCapacity
+  let chan = newNimTsChannel[seq[byte]](cap)
+  return registerChannel(chan)
+
 proc nimts_chan_send*(chanId: int32, dataPtr: pointer, dataLen: int32): int32 {.exportc: "nimts_chan_send", cdecl.} =
-  if not gRawChannels.hasKey(chanId): return -1
-  let chan = gRawChannels[chanId]
-  if chan.isClosed(): return -1
-  var bytes = newSeq[byte](dataLen)
-  if dataLen > 0 and dataPtr != nil:
-    copyMem(addr bytes[0], dataPtr, dataLen)
-  if chan.trySend(bytes):
-    return 1
-  return 0 # full
+  if not gChannelSlots.hasKey(chanId): return -1
+  return gChannelSlots[chanId].trySendProc(dataPtr, dataLen)
 
 proc nimts_chan_try_recv*(chanId: int32): uint64 {.exportc: "nimts_chan_try_recv", cdecl.} =
-  if not gRawChannels.hasKey(chanId): return 0'u64
-  let chan = gRawChannels[chanId]
-  var bytes: seq[byte]
-  if chan.tryRecv(bytes):
-    return allocBytesResult(bytes)
-  return 0'u64
+  if not gChannelSlots.hasKey(chanId): return 0'u64
+  return gChannelSlots[chanId].tryRecvProc()
 
 proc nimts_chan_is_closed*(chanId: int32): int32 {.exportc: "nimts_chan_is_closed", cdecl.} =
-  if gRawChannels.hasKey(chanId):
-    let chan = gRawChannels[chanId]
-    return if chan.isClosed(): 1 else: 0
-  if isHandleValid(chanId):
-    return 0
-  return 1
+  if not gChannelSlots.hasKey(chanId): return 1
+  return if gChannelSlots[chanId].isClosedProc(): 1 else: 0
 
 proc nimts_chan_close*(chanId: int32) {.exportc: "nimts_chan_close", cdecl.} =
-  if gRawChannels.hasKey(chanId):
-    let chan = gRawChannels[chanId]
-    chan.close()
-  elif isHandleValid(chanId):
-    releaseHandle(chanId)
+  if gChannelSlots.hasKey(chanId):
+    gChannelSlots[chanId].closeProc()
 
 proc nimts_chan_destroy*(chanId: int32) {.exportc: "nimts_chan_destroy", cdecl.} =
-  if gRawChannels.hasKey(chanId):
-    let chan = gRawChannels[chanId]
-    chan.close()
-    gRawChannels.del(chanId)
-  elif isHandleValid(chanId):
-    releaseHandle(chanId)
+  if gChannelSlots.hasKey(chanId):
+    gChannelSlots[chanId].closeProc()
+    gChannelSlots.del(chanId)
 
 # Module-namespaced C-ABI aliases
 proc nimts_core_chan_send*(chanId: int32, dataPtr: pointer, dataLen: int32): int32 {.exportc: "nimts_core_chan_send", cdecl.} =

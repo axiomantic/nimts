@@ -9,7 +9,7 @@ type
     volume*: float32
     sampleRate*: float32
 
-  SynthConfig* = object
+  SynthConfig* {.exportts.} = object
     polyphony*: int32
     name*: string
 
@@ -94,6 +94,12 @@ proc streamNumbers*(count: int32): NimTsChannel[int32] {.exportts.} =
   for i in 1 .. count:
     discard ch.send(i)
   return ch
+
+proc audioInit*(rate: int32): int32 {.exportts(module = "audio").} =
+  rate * 2
+
+proc videoInit*(fps: int32): int32 {.exportts(module = "video").} =
+  fps + 10
 
 static:
   emitTsGlueFiles("test_module", "tests/fixtures")

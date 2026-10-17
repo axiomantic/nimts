@@ -1,126 +1,74 @@
-// tests/test_negative_controls.test.ts - Vitest integration negative control suites (NEG-01 to NEG-05)
+// tests/test_negative_controls.test.ts - Vitest integration negative control suites (NEG-01 to NEG-06)
 // Licensed under MIT License.
 
 import { describe, it, expect, beforeAll } from 'vitest';
 import * as path from 'node:path';
+import { execSync } from 'node:child_process';
 import {
   initNimTs,
   createEngine,
   getEngineVolume,
   setEngineVolume,
   getNimTsModule,
-  AudioEngine
+  AudioEngine,
+  streamWords,
+  streamNumbers
 } from './fixtures/test_module.js';
 
 const WASM_FILE = path.resolve(__dirname, 'fixtures/test_module.wasm');
 
-describe('Adversarial Negative Control Suites (NEG-01 to NEG-05)', () => {
+describe('Adversarial Negative Control Suites (NEG-01 to NEG-06)', () => {
   beforeAll(async () => {
     await initNimTs({ wasmPath: WASM_FILE });
   });
 
-  describe('NEG-01: Channel Early-Break Memory Reclamation', () => {
-    it('ensures explicit disposal reclaims handles during aborted iteration', () => {
-      const wasm = getNimTsModule();
-      const initialCount = typeof wasm.nimts_active_handle_count === 'function' ? wasm.nimts_active_handle_count() : 0;
+  describe('NEG-01: Real Channel Early-Break Memory Reclamation', () => {
+    it('ensures early break in for-await loop closes channel and reclaims WASM resources', async () => {
+      const channel = streamWords(['alpha', 'beta', 'gamma', 'delta', 'epsilon']);
+      expect(channel.channelId).toBeGreaterThan(0);
+      expect(channel.isClosed).toBe(false);
 
-      // Simulate creating 5 streamed resource handles
-      const streamHandles = [
-        createEngine(44100.0),
-        createEngine(48000.0),
-        createEngine(96000.0),
-        createEngine(48000.0),
-        createEngine(44100.0)
-      ];
-
-      for (const h of streamHandles) {
-        expect(h.handleId).toBeGreaterThan(0);
-      }
-
-      if (typeof wasm.nimts_active_handle_count === 'function') {
-        expect(wasm.nimts_active_handle_count()).toBe(initialCount + 5);
-      }
-
-      // Simulate consumer breaking on item index 2 (early break)
-      const consumed: AudioEngine[] = [];
-      for (const item of streamHandles) {
+      const consumed: string[] = [];
+      for await (const item of channel) {
         consumed.push(item);
         if (consumed.length === 2) {
-          break; // 'break' out of iteration
+          break; // Early break triggers .return()
         }
       }
 
-      // Proper stream disposal cleans up both consumed and unconsumed handles
-      for (const h of streamHandles) {
-        h.dispose();
-        expect(h.handleId).toBe(0);
-      }
+      expect(consumed).toEqual(['alpha', 'beta']);
+      expect(channel.isClosed).toBe(true);
+      expect(channel.channelId).toBe(0);
 
-      if (typeof wasm.nimts_active_handle_count === 'function') {
-        expect(wasm.nimts_active_handle_count()).toBe(initialCount);
-      }
+      // Subsequent iterations yield done
+      const res = await channel.next();
+      expect(res.done).toBe(true);
+      expect(res.value).toBeUndefined();
     });
   });
 
-  describe('NEG-02: Ring-Buffer Capacity Saturation Backpressure', () => {
-    class BoundedRingBuffer<T> {
-      private buffer: (T | null)[];
-      private head = 0;
-      private tail = 0;
-      private count = 0;
-      readonly capacity: number;
+  describe('NEG-02: Real WASM Ring-Buffer Capacity Saturation Backpressure', () => {
+    it('rejects pushes when channel capacity is saturated without corrupting ring buffer', async () => {
+      // streamNumbers creates a real WASM NimTsChannel with capacity 32
+      const channel = streamNumbers(32);
+      expect(channel.channelId).toBeGreaterThan(0);
+      expect(channel.isClosed).toBe(false);
 
-      constructor(capacity: number) {
-        this.capacity = capacity;
-        this.buffer = new Array<T | null>(capacity).fill(null);
-      }
+      // Attempting to send into a saturated channel returns false (backpressure)
+      const pushRejected = channel.send(999);
+      expect(pushRejected).toBe(false);
 
-      tryPush(item: T): boolean {
-        if (this.count >= this.capacity) {
-          return false; // Backpressure: saturated
-        }
-        this.buffer[this.tail] = item;
-        this.tail = (this.tail + 1) % this.capacity;
-        this.count++;
-        return true;
-      }
+      // Drain one item from the channel
+      const first = await channel.next();
+      expect(first.done).toBe(false);
+      expect(first.value).toBe(1);
 
-      pushOrThrow(item: T): void {
-        if (!this.tryPush(item)) {
-          throw new RangeError(`RingBuffer saturated: capacity ${this.capacity} reached`);
-        }
-      }
+      // Now sending into the drained slot succeeds
+      const pushAccepted = channel.send(999);
+      expect(pushAccepted).toBe(true);
 
-      pop(): T | null {
-        if (this.count === 0) return null;
-        const item = this.buffer[this.head];
-        this.buffer[this.head] = null;
-        this.head = (this.head + 1) % this.capacity;
-        this.count--;
-        return item;
-      }
-
-      get size() { return this.count; }
-    }
-
-    it('rejects pushes when capacity is saturated and preserves head integrity', () => {
-      const rb = new BoundedRingBuffer<number>(3);
-      rb.pushOrThrow(100);
-      rb.pushOrThrow(200);
-      rb.pushOrThrow(300);
-      expect(rb.size).toBe(3);
-
-      // Saturated push must throw RangeError and NOT overwrite existing elements
-      expect(() => rb.pushOrThrow(400)).toThrow(RangeError);
-      expect(rb.size).toBe(3);
-
-      // Verify oldest item is intact
-      expect(rb.pop()).toBe(100);
-      expect(rb.size).toBe(2);
-
-      // Now push succeeds
-      expect(rb.tryPush(400)).toBe(true);
-      expect(rb.size).toBe(3);
+      channel.close();
+      expect(channel.isClosed).toBe(true);
     });
   });
 
@@ -145,19 +93,21 @@ describe('Adversarial Negative Control Suites (NEG-01 to NEG-05)', () => {
   });
 
   describe('NEG-04: Multi-Module Duplicate Proc Namespacing', () => {
-    it('verifies namespaced C-ABI symbols remain distinct in WASM exports', () => {
+    it('verifies distinct module-namespaced C-ABI exports do not collide', () => {
       const wasm = getNimTsModule();
       expect(wasm).toBeDefined();
 
-      // Ensure that C-ABI symbols have standard nimts prefix
-      expect(typeof wasm.nimts_alloc).toBe('function');
-      expect(typeof wasm.nimts_free).toBe('function');
+      // Check both module-namespaced exports are present and distinct
+      expect(typeof wasm.nimts_audio_audioInit).toBe('function');
+      expect(typeof wasm.nimts_video_videoInit).toBe('function');
+      expect(wasm.nimts_audio_audioInit).not.toBe(wasm.nimts_video_videoInit);
 
-      // Namespaced symbols (e.g. nimts_addNumbers vs hypothetical nimts_math_addNumbers)
-      // verify that export map does not suffer key collisions
-      const keys = Object.keys(wasm);
-      const uniqueKeys = new Set(keys);
-      expect(keys.length).toBe(uniqueKeys.size);
+      // Call each namespaced function and verify distinct behavior
+      const audioRes = wasm.nimts_audio_audioInit(44100);
+      expect(audioRes).toBe(88200);
+
+      const videoRes = wasm.nimts_video_videoInit(60);
+      expect(videoRes).toBe(70);
     });
   });
 
@@ -198,6 +148,17 @@ describe('Adversarial Negative Control Suites (NEG-01 to NEG-05)', () => {
         wasm.nimts_free(p);
       }
       engine.dispose();
+    });
+  });
+
+  describe('NEG-06: Automated TypeScript Type Validity (tsc --noEmit)', () => {
+    it('validates that all generated .d.ts files compile cleanly with zero TypeScript errors', () => {
+      const fixturesDts = path.resolve(__dirname, 'fixtures/test_module.d.ts');
+      const output = execSync(`npx tsc --noEmit ${fixturesDts}`, {
+        encoding: 'utf-8',
+        cwd: path.resolve(__dirname, '..')
+      });
+      expect(output.trim()).toBe('');
     });
   });
 });
