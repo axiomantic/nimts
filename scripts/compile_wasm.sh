@@ -148,6 +148,7 @@ fi
 
 echo "==> [Backend: Standalone] 1. Generating C sources from ${INPUT_NIM} via Nim..."
 nim c -c -d:emscripten -d:useMalloc -d:release --opt:speed --cpu:wasm32 \
+  --noMain:on \
   -p:"${ROOT_DIR}/src" \
   --nimcache:"${NIMCACHE_DIR}" \
   "${INPUT_NIM}"

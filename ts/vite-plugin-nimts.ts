@@ -125,6 +125,7 @@ export function nimtsPlugin(options: NimTsPluginOptions = {}): Plugin {
           '-d:release',
           '--opt:speed',
           '--cpu:wasm32',
+          '--noMain:on',
           `-p:${path.resolve(__dirname, '../src')}`,
           `--nimcache:${nimcacheDir}`,
           ...(options.extraNimFlags || []),

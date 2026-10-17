@@ -173,6 +173,27 @@ export class NimTsRuntime {
       wasi_snapshot_preview1: new Proxy({}, {
         get: (_target, prop) => {
           if (prop === 'fd_prestat_get') return () => 8;
+          if (prop === 'environ_sizes_get' || prop === 'args_sizes_get') {
+            return (count_ptr: number, buf_size_ptr: number) => {
+              const mem = (this.instance?.exports?.memory || (this.exports as any)?.memory) as WebAssembly.Memory | undefined;
+              if (mem && mem.buffer) {
+                const view = new DataView(mem.buffer);
+                view.setUint32(count_ptr, 0, true);
+                view.setUint32(buf_size_ptr, 0, true);
+              }
+              return 0;
+            };
+          }
+          if (prop === 'fd_fdstat_get') {
+            return (_fd: number, stat: number) => {
+              const mem = (this.instance?.exports?.memory || (this.exports as any)?.memory) as WebAssembly.Memory | undefined;
+              if (mem && mem.buffer) {
+                const view = new DataView(mem.buffer);
+                view.setUint8(stat, 2);
+              }
+              return 0;
+            };
+          }
           if (prop === 'fd_write') {
             return (_fd: number, iovs: number, iovs_len: number, nwritten: number) => {
               const mem = (this.instance?.exports?.memory || (this.exports as any)?.memory) as WebAssembly.Memory | undefined;
