@@ -54,16 +54,32 @@ npm install @axiomantic/nimts
 
 ---
 
-## Quickstart: Building Your First Module
+## Quickstart: Vite Integration (Recommended)
 
-Let's write a module called `synth.nim` that exports synchronous procedures, byte processing, stateful handles, and an asynchronous coroutine.
+The fastest and most modern way to build with NimTS is using the official Vite plugin. You import your `.nim` modules directly into your frontend code—Vite handles background WASM compilation, type generation, and hot module reloading automatically.
 
-### Step 1: Write the Nim Code
+### Step 1: Configure Vite
 
-Create `synth.nim`:
+Add the `nimtsPlugin` to your `vite.config.ts`:
+
+```typescript
+// vite.config.ts
+import { defineConfig } from 'vite';
+import { nimtsPlugin } from '@axiomantic/nimts/vite';
+
+export default defineConfig({
+  plugins: [
+    nimtsPlugin()
+  ]
+});
+```
+
+### Step 2: Write Your Nim Module
+
+Create `src/synth.nim`:
 
 ```nim
-# synth.nim
+# src/synth.nim
 import std/asyncdispatch
 import nimts
 
@@ -97,37 +113,15 @@ proc setVolume*(engine: AudioEngine, vol: float32) {.exportts.} =
 # 5. Non-blocking async coroutine: Future[T] -> JS Promise<T>
 proc computeAsync*(x: int32): Future[int32] {.async, exportts.} =
   return x * 42
-
-static:
-  # Emits synth.d.ts and synth.js glue code at compile-time
-  emitTsGlueFiles("synth", ".")
 ```
 
-### Step 2: Compile to WebAssembly (Choosing Your Backend)
+### Step 3: Consume in TypeScript / JavaScript
 
-Compile the Nim file into a WebAssembly binary. You can choose between two compilation backends depending on your deployment target:
-
-```bash
-# 1. Standalone micro-WASM (Default)
-# Uses LLVM clang + wasm-ld + wasi-sysroot. Produces minimal, zero-bloat WASM
-# ideal for AudioWorklets, Web Workers, and lightweight web apps:
-nimts compile synth.nim synth.wasm
-
-# 2. Emscripten Runtime Backend
-# Uses emcc with virtual filesystem (FS), POSIX shims, and modularized ES6 output.
-# Ideal if your code depends on legacy C libraries expecting file I/O or full POSIX libc:
-nimts compile synth.nim synth.wasm --backend:emscripten
-```
-
-This generates:
-- `synth.wasm`: WebAssembly binary.
-- `synth.d.ts`: Full TypeScript type declarations for all exported types and functions.
-- `synth.js`: Modern ES module with memory allocation, handle tracking, and promise bridging (identical TypeScript interface across both backends).
-
-### Step 3: Consume in TypeScript
+Import the `.nim` file directly in your TypeScript code (`src/main.ts`):
 
 ```typescript
-// app.ts
+// src/main.ts
+// Direct import from the .nim module — no manual build steps required!
 import {
   initNimTs,
   addNumbers,
@@ -136,7 +130,7 @@ import {
   createEngine,
   setVolume,
   computeAsync
-} from './synth.js';
+} from './synth.nim';
 
 // 1. Initialize the WebAssembly module
 await initNimTs();
@@ -157,6 +151,53 @@ engine.dispose(); // Explicit deterministic cleanup
 // 5. Await asynchronous Nim coroutines
 const answer = await computeAsync(10);
 console.log(answer); // 420
+```
+
+---
+
+## Advanced Usage: Standalone CLI & Manual Compilation
+
+If you are building outside of Vite (e.g. headless Node.js services, standalone CLI utilities, embedded systems, or custom build scripts), you can compile modules manually with the standalone `nimts` CLI tool.
+
+### 1. Emit Glue Code at Compile Time
+
+Add an `emitTsGlueFiles` statement to the bottom of your Nim file:
+
+```nim
+static:
+  # Emits synth.d.ts and synth.js glue code at compile-time
+  emitTsGlueFiles("synth", ".")
+```
+
+### 2. Compile to WebAssembly (Choosing Your Backend)
+
+Compile the Nim file into a WebAssembly binary. You can choose between two compilation backends depending on your deployment target:
+
+```bash
+# 1. Standalone micro-WASM (Default)
+# Uses LLVM clang + wasm-ld + wasi-sysroot. Produces minimal, zero-bloat WASM
+# ideal for AudioWorklets, Web Workers, and lightweight web apps:
+nimts compile synth.nim synth.wasm
+
+# 2. Emscripten Runtime Backend
+# Uses emcc with virtual filesystem (FS), POSIX shims, and modularized ES6 output.
+# Ideal if your code depends on legacy C libraries expecting file I/O or full POSIX libc:
+nimts compile synth.nim synth.wasm --backend:emscripten
+```
+
+This generates:
+- `synth.wasm`: WebAssembly binary.
+- `synth.d.ts`: Full TypeScript type declarations for all exported types and functions.
+- `synth.js`: Modern ES module with memory allocation, handle tracking, and promise bridging (identical TypeScript interface across both backends).
+
+### 3. Consume the Generated ES Module
+
+```typescript
+// app.ts
+import { initNimTs, addNumbers } from './synth.js';
+
+await initNimTs();
+console.log(addNumbers(17, 25));
 ```
 
 ---

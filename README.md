@@ -43,12 +43,28 @@ npm install @axiomantic/nimts
 
 ---
 
-## Quickstart (3 Minutes)
+## Quickstart: Vite Integration (Recommended)
 
-### 1. Write your Nim module (`engine.nim`)
+The fastest and cleanest way to use NimTS is via the official Vite plugin. You can import `.nim` files directly into your frontend or Web Worker code—compilation, type generation, and hot module reloading happen automatically.
+
+### 1. Configure Vite (`vite.config.ts`)
+
+```typescript
+// vite.config.ts
+import { defineConfig } from 'vite';
+import { nimtsPlugin } from '@axiomantic/nimts/vite';
+
+export default defineConfig({
+  plugins: [
+    nimtsPlugin()
+  ]
+});
+```
+
+### 2. Write your Nim module (`src/engine.nim`)
 
 ```nim
-# engine.nim
+# src/engine.nim
 import std/asyncdispatch
 import nimts
 
@@ -86,28 +102,13 @@ proc setVolume*(engine: AudioEngine, vol: float32) {.exportts.} =
 # 5. Non-blocking async Future[T] -> JS Promise<T>
 proc computeAsync*(x: int32): Future[int32] {.async, exportts.} =
   return x * 42
-
-static:
-  # Emits engine.d.ts and engine.js glue code at compile-time
-  emitTsGlueFiles("engine", ".")
 ```
 
-### 2. Compile to WebAssembly
-
-Using the standalone CLI:
-```bash
-nimts compile engine.nim
-```
-
-Or using the bundled compilation script:
-```bash
-./scripts/compile_wasm.sh engine.nim engine.wasm
-```
-
-### 3. Consume in TypeScript / JavaScript
+### 3. Import directly in your frontend (`src/main.ts`)
 
 ```typescript
-// app.ts
+// src/main.ts
+// Direct import from the .nim file — no manual compilation needed!
 import {
   initNimTs,
   addNumbers,
@@ -116,7 +117,7 @@ import {
   createEngine,
   setVolume,
   computeAsync
-} from './engine.js';
+} from './engine.nim';
 
 // Initialize the WebAssembly module
 await initNimTs();
@@ -136,6 +137,44 @@ engine.dispose(); // Explicit release, or automatic GC via FinalizationRegistry
 
 // Async Future[T] seamlessly awaited as Promise<T>
 const result = await computeAsync(10); // 420
+```
+
+---
+
+## Advanced Usage: Standalone CLI (Without Vite)
+
+If you are building headless Node.js microservices, audio plugins, CLI tools, or custom build pipelines without Vite, you can compile modules manually with the standalone `nimts` CLI:
+
+### 1. Emit static glue files at compile time
+
+Add an `emitTsGlueFiles` call to the end of your Nim module:
+
+```nim
+static:
+  # Emits engine.d.ts and engine.js glue code at compile-time
+  emitTsGlueFiles("engine", ".")
+```
+
+### 2. Compile to WebAssembly
+
+```bash
+# Standalone micro-WASM (Default: clang + wasm-ld + wasi-sysroot)
+# Produces minimal, zero-bloat WASM:
+nimts compile engine.nim engine.wasm
+
+# Emscripten Runtime Backend
+# Uses emcc with virtual filesystem (FS) and POSIX libc shims:
+nimts compile engine.nim engine.wasm --backend:emscripten
+```
+
+### 3. Consume the generated JavaScript glue
+
+```typescript
+// app.ts
+import { initNimTs, addNumbers } from './engine.js';
+
+await initNimTs();
+console.log(addNumbers(10, 32));
 ```
 
 ---
@@ -191,9 +230,9 @@ Stateful entities (`ref object`) are registered in an internal Nim handle regist
 
 ---
 
-## Vite Plugin (`vite-plugin-nimts`)
+## Vite Plugin Configuration Options
 
-Import `.nim` files directly in your Vite application:
+The `nimtsPlugin()` accepts configuration options for advanced builds:
 
 ```typescript
 // vite.config.ts
@@ -203,18 +242,20 @@ import { nimtsPlugin } from '@axiomantic/nimts/vite';
 export default defineConfig({
   plugins: [
     nimtsPlugin({
-      extraNimFlags: ['-d:release']
+      // Extra compiler flags passed directly to Nim
+      extraNimFlags: ['-d:release', '-d:danger'],
+
+      // Choose compilation backend: 'standalone' (default) or 'emscripten'
+      backend: 'standalone',
+
+      // Custom path to wasi-sysroot if not using standard system location
+      sysroot: process.env.WASI_SYSROOT,
+
+      // Directory where generated .wasm binaries are copied for browser serving
+      publicDir: 'public/wasm'
     })
   ]
 });
-```
-
-Then in your frontend:
-```typescript
-import { initNimTs, processData } from './engine.nim';
-
-await initNimTs();
-const result = processData(new Uint8Array([1, 2, 3]));
 ```
 
 ---
