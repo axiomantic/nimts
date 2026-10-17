@@ -67,6 +67,8 @@ suite "NimTS Code Generation Verification":
     check js.contains("export async function loadPatchAsync(url)")
     check js.contains("export async function initNimTs")
     check js.contains("WebAssembly.instantiateStreaming")
+    check js.contains("if (typeof _exports.NimMain === \"function\") _exports.NimMain();")
+    check js.contains("if (typeof _exports.nimts_init === \"function\") _exports.nimts_init();")
 
   test "mapNimTypeToTs maps all core Nim types and generic wrappers correctly":
     check mapNimTypeToTs("int32") == "number"

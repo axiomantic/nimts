@@ -102,3 +102,9 @@ suite "C-ABI & Macro Architecture Remediation (Task 4.1)":
     # Empty returns 0
     check nimts_chan_try_recv(cid) == 0'u64
     nimts_chan_destroy(cid)
+
+  test "ensureNimTsInit and nimts_init initialize runtime idempotently":
+    ensureNimTsInit()
+    check gNimTsInitialized == true
+    nimts_init()
+    check gNimTsInitialized == true

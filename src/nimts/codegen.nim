@@ -754,6 +754,8 @@ proc generateJs*(meta: TsModuleMeta, relativeWasmPath: string = ""): string =
   lines.add("")
   lines.add("  _exports = instance.exports;")
   lines.add("  _memory = _exports.memory;")
+  lines.add("  if (typeof _exports.NimMain === \"function\") _exports.NimMain();")
+  lines.add("  if (typeof _exports.nimts_init === \"function\") _exports.nimts_init();")
   lines.add("  _initialized = true;")
   lines.add("  return _exportsObj;")
   lines.add("}")

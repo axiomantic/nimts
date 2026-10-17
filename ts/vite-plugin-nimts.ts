@@ -220,6 +220,8 @@ export function nimtsPlugin(options: NimTsPluginOptions = {}): Plugin {
             '--export-all',
             '--allow-undefined',
             '--lto-O3',
+            '--export=NimMain',
+            '--export=nimts_init',
             `-L${sysroot}/lib/wasm32-wasip1`,
             '-lc',
             '-lwasi-emulated-mman',

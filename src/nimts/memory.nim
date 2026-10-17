@@ -12,6 +12,7 @@ type
     destructor: proc(raw: pointer)
 
 var
+  gNimTsInitialized* = false
   gLastResultPtr*: pointer = nil
   gLastResultLen*: int32 = 0
   gLastErrorMsg*: string = ""
@@ -19,6 +20,18 @@ var
 
   gHandleCounter: HandleId = 1
   gHandleTable = initTable[HandleId, HandleEntry]()
+
+proc NimMain*() {.importc: "NimMain", cdecl.}
+
+proc ensureNimTsInit*() {.inline.} =
+  if not gNimTsInitialized:
+    gNimTsInitialized = true
+    NimMain()
+
+proc nimts_init*() {.exportc: "nimts_init", cdecl.} =
+  ensureNimTsInit()
+
+gNimTsInitialized = true
 
 proc nimts_alloc*(size: int32): pointer {.exportc: "nimts_alloc", cdecl.} =
   if size <= 0: return nil

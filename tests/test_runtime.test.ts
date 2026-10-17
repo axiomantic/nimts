@@ -112,5 +112,14 @@ describe('NimTsRuntime Unit Tests', () => {
       const cached = await runtime.init(module);
       expect(cached).toBe(exports);
     });
+
+    it('verifies NimMain and nimts_init are exported and callable in compiled WASM', async () => {
+      const runtime = new NimTsRuntime();
+      const exports = await runtime.init(wasmBytes);
+      expect(typeof exports.NimMain).toBe('function');
+      expect(typeof exports.nimts_init).toBe('function');
+      expect(() => exports.NimMain()).not.toThrow();
+      expect(() => exports.nimts_init()).not.toThrow();
+    });
   });
 });

@@ -6,6 +6,8 @@ import std/strutils
 import std/tables
 import std/json
 import codegen
+import memory
+export memory
 
 var
   gExportedProcs {.compileTime.}: seq[TsProc] = @[]
@@ -259,6 +261,7 @@ proc processExportTs*(body: NimNode): NimNode =
 
     # 3. Build C-ABI companion wrapper body
     var companionBody = newStmtList()
+    companionBody.add(newCall(ident("ensureNimTsInit")))
     companionBody.add(unpackStmts)
 
     var callExpr = newCall(baseIdent)
