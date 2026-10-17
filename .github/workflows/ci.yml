@@ -54,6 +54,9 @@ jobs:
 
       - name: Install LLVM & WebAssembly Toolchain (macOS)
         if: runner.os == 'macOS'
+        env:
+          HOMEBREW_NO_AUTO_UPDATE: 1
+          HOMEBREW_NO_INSTALL_CLEANUP: 1
         run: |
           brew install llvm wasi-sysroot || true
           echo "/opt/homebrew/opt/llvm/bin" >> $GITHUB_PATH

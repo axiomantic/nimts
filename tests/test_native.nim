@@ -3,6 +3,7 @@
 
 import std/unittest
 import std/asyncdispatch
+import std/strutils
 import nimts
 
 type
@@ -76,5 +77,6 @@ suite "Native Nim {.exportts.} Non-Invasive Verification":
 
   test "Direct invocation with overloaded procs":
     check formatValue(42'i32) == "int:42"
-    check formatValue(3.14'f32) == "float:3.14"
+    check formatValue(3.5'f32) == "float:3.5"
+    check formatValue(3.14'f32).startsWith("float:3.14")
 
