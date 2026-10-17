@@ -54,7 +54,7 @@ For all parallel development tracks:
   - *Verification*: `test_codegen.nim` and `wasm-ld` multi-module link test passes
   - *Weave*: `vine gate && vine weave && rhizo unlock file:src/nimts/macros.nim`
 
-- [ ] **Task 1.3: Closure Iterator Handles & C-ABI Control Surface** (`nimts-implementer`)
+- [x] **Task 1.3: Closure Iterator Handles & C-ABI Control Surface** (`nimts-implementer`)
   - *Strand*: `strand/closure-iterators`
   - *Lock*: `rhizo lock file:src/nimts/types.nim 600 --fencing`
   - *Provider*: `src/nimts/types.nim` and `src/nimts/memory.nim` (`ClosureIterSlot[T]`, `nimts_iter_next`, `nimts_iter_dispose`)
@@ -63,7 +63,7 @@ For all parallel development tracks:
   - *Weave*: `vine gate && vine weave && rhizo unlock file:src/nimts/types.nim`
 
 ### Phase 2: Codegen & TypeScript Projections
-- [ ] **Task 2.1: `AsyncIterable<T>` & `IterableIterator<T>` TypeScript Codegen** (`nimts-implementer`)
+- [x] **Task 2.1: `AsyncIterable<T>` & `IterableIterator<T>` TypeScript Codegen** (`nimts-implementer`)
   - *Strand*: `strand/ts-codegen`
   - *Lock*: `rhizo lock file:src/nimts/codegen.nim 600 --fencing`
   - *Provider*: `src/nimts/codegen.nim` (generate `NimTsChannel<T>` and `NimTsIterator<T>` classes)
@@ -71,7 +71,7 @@ For all parallel development tracks:
   - *Verification*: `test_codegen.nim` validates generated code structure and ES2015 protocol conformance
   - *Weave*: `vine gate && vine weave && rhizo unlock file:src/nimts/codegen.nim`
 
-- [ ] **Task 2.2: Memory Growth Detachment Guards & Return Disposal** (`nimts-implementer`)
+- [x] **Task 2.2: Memory Growth Detachment Guards & Return Disposal** (`nimts-implementer`)
   - *Strand*: `strand/codegen-guards`
   - *Lock*: `rhizo lock file:src/nimts/codegen.nim 600 --fencing`
   - *Provider*: `src/nimts/codegen.nim` (dynamic `_memory.buffer` access, early `.return()` hooks)
