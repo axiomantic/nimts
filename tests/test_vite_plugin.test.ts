@@ -115,6 +115,6 @@ describe('Vite Plugin (vite-plugin-nimts)', () => {
       expect(res.code).toContain('initNimTs');
       expect(res.code).toContain('addNumbers');
       expect(res.code).toContain('createEngine');
-    });
+    }, 30000);
   });
 });

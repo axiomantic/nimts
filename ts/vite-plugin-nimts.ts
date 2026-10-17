@@ -209,7 +209,7 @@ import { NimTsRuntime } from 'nimts/runtime';
 const runtime = new NimTsRuntime();
 export async function initNimTs(opts = {}) {
   await runtime.init({ wasmPath: '/wasm/${baseName}.wasm', ...opts });
-  return runtime.wasm;
+  return runtime.exports;
 }
 export { runtime };
 `;

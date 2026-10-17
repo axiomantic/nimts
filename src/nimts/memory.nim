@@ -100,6 +100,9 @@ proc getHandleTypeName*(h: HandleId): string =
     return gHandleTable[h].typeName
   return ""
 
+proc isHandleValid*(h: HandleId): bool =
+  h != InvalidHandleId and gHandleTable.hasKey(h)
+
 proc releaseHandle*(h: HandleId) =
   if h != InvalidHandleId and gHandleTable.hasKey(h):
     let entry = gHandleTable[h]

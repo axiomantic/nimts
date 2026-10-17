@@ -164,3 +164,61 @@ suite "NimTS Code Generation Verification":
     check js.contains("function _resolveValue(ptrOrBuf, len, kind)")
     check js.contains("view.getFloat64(0, true)")
     check js.contains("view.getInt32(0, true) !== 0")
+
+  test "generateDts and generateJs handle overloaded procedures correctly without duplicate declarations":
+    let meta = TsModuleMeta(
+      name: "overload_mod",
+      wasmFileName: "overload_mod.wasm",
+      types: @[],
+      procs: @[
+        TsProc(
+          name: "formatValue",
+          cabiName: "nimts_formatValue",
+          params: @[TsParam(name: "val", nimType: "int32", tsType: "number")],
+          returnNimType: "string",
+          returnTsType: "string",
+          isAsync: false,
+          isHandleReturn: false,
+          returnKind: "string"
+        ),
+        TsProc(
+          name: "formatValue",
+          cabiName: "nimts_formatValue_1",
+          params: @[TsParam(name: "val", nimType: "float32", tsType: "number")],
+          returnNimType: "string",
+          returnTsType: "string",
+          isAsync: false,
+          isHandleReturn: false,
+          returnKind: "string"
+        ),
+        TsProc(
+          name: "computeHash",
+          cabiName: "nimts_computeHash",
+          params: @[TsParam(name: "id", nimType: "int64", tsType: "bigint")],
+          returnNimType: "int64",
+          returnTsType: "bigint",
+          isAsync: false,
+          isHandleReturn: false,
+          returnKind: "int64"
+        )
+      ]
+    )
+
+    let dts = generateDts(meta)
+    check dts.contains("formatValue(val: number): string;")
+    check dts.contains("computeHash(id: bigint): bigint;")
+
+    let js = generateJs(meta)
+    check js.contains("function _proc_formatValue_0(val)")
+    check js.contains("function _proc_formatValue_1(val)")
+    check js.contains("export function formatValue(...args)")
+    check js.contains("Number.isInteger(args[0])")
+    check js.contains("export function computeHash(id)")
+    # BigInt param must not be stringified
+    check not js.contains("JSON.stringify(id)")
+    # Check that formatValue only appears once in _exportsObj
+    let exportsIdx1 = js.find("formatValue,")
+    check exportsIdx1 != -1
+    let exportsIdx2 = js.find("formatValue,", exportsIdx1 + 12)
+    check exportsIdx2 == -1
+

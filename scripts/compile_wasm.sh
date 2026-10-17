@@ -37,7 +37,13 @@ fi
 
 NIM_LIB="$(nim dump 2>&1 | grep "lib$" | head -1 || echo "")"
 if [[ -z "${NIM_LIB}" || ! -d "${NIM_LIB}" ]]; then
-  NIM_LIB="/Users/eek/.local/share/mise/installs/nim/2.2.12/lib"
+  NIM_BIN="$(command -v nim || echo "")"
+  if [[ -n "${NIM_BIN}" ]]; then
+    CANDIDATE="$(dirname "$(dirname "$(readlink -f "${NIM_BIN}" 2>/dev/null || realpath "${NIM_BIN}" 2>/dev/null || echo "${NIM_BIN}")")")/lib"
+    if [[ -d "${CANDIDATE}" ]]; then
+      NIM_LIB="${CANDIDATE}"
+    fi
+  fi
 fi
 
 if [[ -z "${CLANG_BIN}" || ! -x "${CLANG_BIN}" ]]; then

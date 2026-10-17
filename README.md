@@ -20,6 +20,7 @@ NimTS enables writing high-performance WebAssembly libraries in Nim with natural
 - ⚡ **Non-Invasive `{.exportts.}`**: Never perturbs the native Nim signature or behavior of your code. Procs remain 100% callable by native Nim CLI tools, VST/CLAP audio plugins, and native unit tests with zero overhead.
 - 🔄 **Bidirectional Async Bridge**: Automatically bridges Nim `Future[T]` and JavaScript `Promise<T>` without blocking the main browser thread.
 - 🎛️ **Stateful Handles with GC**: Exports `ref object` instances as type-safe opaque handles with automatic garbage collection via JavaScript's `FinalizationRegistry` and deterministic manual `.dispose()`.
+- 🔁 **Closure Iterators & SPSC Channels**: Stream data from Nim closures as standard ES2015 `IterableIterator<T>` (`for..of`, `[...]`) and lock-free SPSC channels as `AsyncIterable<T>` (`for await..of`).
 - 📦 **Vite Plugin**: Import `.nim` files directly into your frontend code with on-the-fly compilation and hot module reloading.
 - 🎵 **AudioWorklet & Worker Ready**: Supports streaming instantiation, pre-compiled `WebAssembly.Module` sharing, and raw `BufferSource` buffers.
 
@@ -182,6 +183,8 @@ Stateful entities (`ref object`) are registered in an internal Nim handle regist
 | `ref object` | `Class` | Opaque `HandleId` with `FinalizationRegistry` |
 | `object`, `tuple` | `interface` | Automatic JSON serialization / deserialization |
 | `Future[T]` | `Promise<T>` | Bidirectional non-blocking `PromiseId` bridge |
+| `NimTsIterator[T]` | `NimTsIterator<T>` (`IterableIterator<T>`) | Closure iterator handle stepping via monotonic slot registry |
+| `NimTsChannel[T]` | `NimTsChannel<T>` (`AsyncIterable<T>`) | Lock-free SPSC circular queue with backpressure |
 
 ---
 

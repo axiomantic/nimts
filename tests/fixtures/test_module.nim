@@ -83,5 +83,17 @@ proc iterateFibonacci*(n: int32): NimTsIterator[int32] {.exportts.} =
       b = next
   return newNimTsIterator[int32](it)
 
+proc streamWords*(words: seq[string]): NimTsChannel[string] {.exportts.} =
+  let ch = newNimTsChannel[string](32)
+  for w in words:
+    discard ch.send(w)
+  return ch
+
+proc streamNumbers*(count: int32): NimTsChannel[int32] {.exportts.} =
+  let ch = newNimTsChannel[int32](32)
+  for i in 1 .. count:
+    discard ch.send(i)
+  return ch
+
 static:
   emitTsGlueFiles("test_module", "tests/fixtures")

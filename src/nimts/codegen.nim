@@ -3,6 +3,8 @@
 
 import std/strutils
 import std/sequtils
+import std/sets
+import std/tables
 
 type
   TsParam* = object
@@ -121,13 +123,17 @@ proc generateDts*(meta: TsModuleMeta): string =
 
   # Emit Exports interface
   lines.add("export interface " & meta.name & "Exports {")
+  var seenInterfaceSigs = initHashSet[string]()
   for p in meta.procs:
     let paramSigs = p.params.mapIt(it.name & ": " & it.tsType).join(", ")
     let retSig = if p.isAsync and not p.returnTsType.startsWith("Promise<"):
       "Promise<" & p.returnTsType & ">"
     else:
       p.returnTsType
-    lines.add("  " & p.name & "(" & paramSigs & "): " & retSig & ";")
+    let sigKey = p.name & "(" & paramSigs & "): " & retSig
+    if not seenInterfaceSigs.contains(sigKey):
+      seenInterfaceSigs.incl(sigKey)
+      lines.add("  " & p.name & "(" & paramSigs & "): " & retSig & ";")
   lines.add("}")
   lines.add("")
 
@@ -139,15 +145,135 @@ proc generateDts*(meta: TsModuleMeta): string =
   lines.add("")
 
   # Top-level functions
+  var seenTopLevelSigs = initHashSet[string]()
   for p in meta.procs:
     let paramSigs = p.params.mapIt(it.name & ": " & it.tsType).join(", ")
     let retSig = if p.isAsync and not p.returnTsType.startsWith("Promise<"):
       "Promise<" & p.returnTsType & ">"
     else:
       p.returnTsType
-    lines.add("export declare function " & p.name & "(" & paramSigs & "): " & retSig & ";")
+    let sigKey = p.name & "(" & paramSigs & "): " & retSig
+    if not seenTopLevelSigs.contains(sigKey):
+      seenTopLevelSigs.incl(sigKey)
+      lines.add("export declare function " & p.name & "(" & paramSigs & "): " & retSig & ";")
 
   result = lines.join("\n") & "\n"
+
+proc generateProcBody(p: TsProc, fnName: string, isExported: bool, meta: TsModuleMeta): seq[string] =
+  var lines: seq[string] = @[]
+  let paramNames = p.params.mapIt(it.name).join(", ")
+  let exportPrefix = if isExported: "export " else: ""
+  let asyncPrefix = if p.isAsync: "async " else: ""
+  lines.add(exportPrefix & asyncPrefix & "function " & fnName & "(" & paramNames & ") {")
+  lines.add("  _assertInit();")
+
+  var callArgs: seq[string] = @[]
+  var allocStmts: seq[string] = @[]
+  var freeStmts: seq[string] = @[]
+
+  for param in p.params:
+    case param.tsType
+    of "string":
+      let varName = "_" & param.name & "_buf"
+      allocStmts.add("  const " & varName & " = _allocString(" & param.name & ");")
+      callArgs.add(varName & ".ptr")
+      callArgs.add(varName & ".len")
+      freeStmts.add("  _free(" & varName & ".ptr);")
+    of "Uint8Array":
+      let varName = "_" & param.name & "_buf"
+      allocStmts.add("  const " & varName & " = _allocBytes(" & param.name & ");")
+      callArgs.add(varName & ".ptr")
+      callArgs.add(varName & ".len")
+      freeStmts.add("  _free(" & varName & ".ptr);")
+    of "number", "boolean", "bigint":
+      callArgs.add(param.name)
+    else:
+      if param.nimType.contains("Handle") or meta.types.anyIt(it.name == param.tsType and it.isHandle):
+        callArgs.add(param.name & ".handleId")
+      else:
+        let varName = "_" & param.name & "_buf"
+        allocStmts.add("  const " & varName & " = _allocString(JSON.stringify(" & param.name & "));")
+        callArgs.add(varName & ".ptr")
+        callArgs.add(varName & ".len")
+        freeStmts.add("  _free(" & varName & ".ptr);")
+
+  for a in allocStmts: lines.add(a)
+  lines.add("  try {")
+  let rawCall = "_exports." & p.cabiName & "(" & callArgs.join(", ") & ")"
+
+  if p.isAsync:
+    lines.add("    const promiseId = " & rawCall & ";")
+    lines.add("    return new Promise((resolve, reject) => {")
+    lines.add("      if (_settledEarly.has(promiseId)) {")
+    lines.add("        const early = _settledEarly.get(promiseId);")
+    lines.add("        _settledEarly.delete(promiseId);")
+    lines.add("        if (early.isError) reject(new Error(early.errorMsg));")
+    lines.add("        else {")
+    lines.add("          resolve(_resolveValue(early.bytes, early.bytes ? early.bytes.length : 0, " & "\"" & p.returnKind & "\"" & "));")
+    lines.add("        }")
+    lines.add("      } else {")
+    lines.add("        _pendingPromises.set(promiseId, { resolve, reject, kind: " & "\"" & p.returnKind & "\"" & " });")
+    lines.add("      }")
+    lines.add("    });")
+  else:
+    if p.returnKind == "void":
+      lines.add("    " & rawCall & ";")
+      lines.add("    return;")
+    elif p.returnKind in ["int32", "primitive"]:
+      if p.returnTsType == "boolean":
+        lines.add("    return Boolean(" & rawCall & ");")
+      else:
+        lines.add("    return " & rawCall & ";")
+    elif p.returnKind in ["int64", "float32", "float64"]:
+      lines.add("    return " & rawCall & ";")
+    elif p.returnKind == "bool":
+      lines.add("    return Boolean(" & rawCall & ");")
+    elif p.returnKind == "char":
+      lines.add("    return String.fromCharCode(" & rawCall & ");")
+    elif p.returnKind == "string":
+      lines.add("    const packed = " & rawCall & ";")
+      lines.add("    const { ptr, len } = _unpackResult64(packed);")
+      lines.add("    const str = _readString(ptr, len);")
+      lines.add("    _free(ptr);")
+      lines.add("    return str;")
+    elif p.returnKind == "bytes":
+      lines.add("    const packed = " & rawCall & ";")
+      lines.add("    const { ptr, len } = _unpackResult64(packed);")
+      lines.add("    const bytes = _readBytes(ptr, len);")
+      lines.add("    _free(ptr);")
+      lines.add("    return bytes;")
+    elif p.returnKind == "handle":
+      lines.add("    const handleId = " & rawCall & ";")
+      lines.add("    return new " & p.returnTsType & "(handleId);")
+    elif p.returnKind.startsWith("iterator:"):
+      let k = p.returnKind[9 .. ^1]
+      lines.add("    const handleId = " & rawCall & ";")
+      lines.add("    return new NimTsIterator(handleId, \"" & k & "\");")
+    elif p.returnKind == "iterator":
+      lines.add("    const handleId = " & rawCall & ";")
+      lines.add("    return new NimTsIterator(handleId, \"primitive\");")
+    elif p.returnKind.startsWith("channel:"):
+      let k = p.returnKind[8 .. ^1]
+      lines.add("    const channelId = " & rawCall & ";")
+      lines.add("    return new NimTsChannel(channelId, \"" & k & "\");")
+    elif p.returnKind == "channel":
+      lines.add("    const channelId = " & rawCall & ";")
+      lines.add("    return new NimTsChannel(channelId, \"primitive\");")
+    elif p.returnKind == "object":
+      lines.add("    const packed = " & rawCall & ";")
+      lines.add("    const { ptr, len } = _unpackResult64(packed);")
+      lines.add("    const jsonStr = _readString(ptr, len);")
+      lines.add("    _free(ptr);")
+      lines.add("    return JSON.parse(jsonStr);")
+    else:
+      lines.add("    return " & rawCall & ";")
+
+  lines.add("  } finally {")
+  for f in freeStmts: lines.add(f)
+  lines.add("  }")
+  lines.add("}")
+  lines.add("")
+  return lines
 
 proc generateJs*(meta: TsModuleMeta, relativeWasmPath: string = ""): string =
   let wasmPath = if relativeWasmPath.len > 0: relativeWasmPath else: "./" & meta.wasmFileName
@@ -450,126 +576,80 @@ proc generateJs*(meta: TsModuleMeta, relativeWasmPath: string = ""): string =
   lines.add("}")
   lines.add("")
 
-  # Emit procs
+  # Emit procs with overload grouping and dispatching
+  var procsByName = initOrderedTable[string, seq[TsProc]]()
   for p in meta.procs:
-    let paramNames = p.params.mapIt(it.name).join(", ")
-    lines.add("export " & (if p.isAsync: "async " else: "") & "function " & p.name & "(" & paramNames & ") {")
-    lines.add("  _assertInit();")
+    if not procsByName.hasKey(p.name):
+      procsByName[p.name] = @[]
+    procsByName[p.name].add(p)
 
-    var callArgs: seq[string] = @[]
-    var allocStmts: seq[string] = @[]
-    var freeStmts: seq[string] = @[]
-
-    for param in p.params:
-      case param.tsType
-      of "string":
-        let varName = "_" & param.name & "_buf"
-        allocStmts.add("  const " & varName & " = _allocString(" & param.name & ");")
-        callArgs.add(varName & ".ptr")
-        callArgs.add(varName & ".len")
-        freeStmts.add("  _free(" & varName & ".ptr);")
-      of "Uint8Array":
-        let varName = "_" & param.name & "_buf"
-        allocStmts.add("  const " & varName & " = _allocBytes(" & param.name & ");")
-        callArgs.add(varName & ".ptr")
-        callArgs.add(varName & ".len")
-        freeStmts.add("  _free(" & varName & ".ptr);")
-      of "number", "boolean":
-        callArgs.add(param.name)
-      else:
-        if param.nimType.contains("Handle") or meta.types.anyIt(it.name == param.tsType and it.isHandle):
-          callArgs.add(param.name & ".handleId")
-        else:
-          let varName = "_" & param.name & "_buf"
-          allocStmts.add("  const " & varName & " = _allocString(JSON.stringify(" & param.name & "));")
-          callArgs.add(varName & ".ptr")
-          callArgs.add(varName & ".len")
-          freeStmts.add("  _free(" & varName & ".ptr);")
-
-    for a in allocStmts: lines.add(a)
-    lines.add("  try {")
-    let rawCall = "_exports." & p.cabiName & "(" & callArgs.join(", ") & ")"
-
-    if p.isAsync:
-      lines.add("    const promiseId = " & rawCall & ";")
-      lines.add("    return new Promise((resolve, reject) => {")
-      lines.add("      if (_settledEarly.has(promiseId)) {")
-      lines.add("        const early = _settledEarly.get(promiseId);")
-      lines.add("        _settledEarly.delete(promiseId);")
-      lines.add("        if (early.isError) reject(new Error(early.errorMsg));")
-      lines.add("        else {")
-      lines.add("          resolve(_resolveValue(early.bytes, early.bytes ? early.bytes.length : 0, " & "\"" & p.returnKind & "\"" & "));")
-      lines.add("        }")
-      lines.add("      } else {")
-      lines.add("        _pendingPromises.set(promiseId, { resolve, reject, kind: " & "\"" & p.returnKind & "\"" & " });")
-      lines.add("      }")
-      lines.add("    });")
+  for name, procs in procsByName:
+    if procs.len == 1:
+      for line in generateProcBody(procs[0], name, true, meta):
+        lines.add(line)
     else:
-      if p.returnKind == "void":
-        lines.add("    " & rawCall & ";")
-        lines.add("    return;")
-      elif p.returnKind in ["int32", "primitive"]:
-        if p.returnTsType == "boolean":
-          lines.add("    return Boolean(" & rawCall & ");")
-        else:
-          lines.add("    return " & rawCall & ";")
-      elif p.returnKind in ["int64", "float32", "float64"]:
-        lines.add("    return " & rawCall & ";")
-      elif p.returnKind == "bool":
-        lines.add("    return Boolean(" & rawCall & ");")
-      elif p.returnKind == "char":
-        lines.add("    return String.fromCharCode(" & rawCall & ");")
-      elif p.returnKind == "string":
-        lines.add("    const packed = " & rawCall & ";")
-        lines.add("    const { ptr, len } = _unpackResult64(packed);")
-        lines.add("    const str = _readString(ptr, len);")
-        lines.add("    _free(ptr);")
-        lines.add("    return str;")
-      elif p.returnKind == "bytes":
-        lines.add("    const packed = " & rawCall & ";")
-        lines.add("    const { ptr, len } = _unpackResult64(packed);")
-        lines.add("    const bytes = _readBytes(ptr, len);")
-        lines.add("    _free(ptr);")
-        lines.add("    return bytes;")
-      elif p.returnKind == "handle":
-        lines.add("    const handleId = " & rawCall & ";")
-        lines.add("    return new " & p.returnTsType & "(handleId);")
-      elif p.returnKind.startsWith("iterator:"):
-        let k = p.returnKind[9 .. ^1]
-        lines.add("    const handleId = " & rawCall & ";")
-        lines.add("    return new NimTsIterator(handleId, \"" & k & "\");")
-      elif p.returnKind == "iterator":
-        lines.add("    const handleId = " & rawCall & ";")
-        lines.add("    return new NimTsIterator(handleId, \"primitive\");")
-      elif p.returnKind.startsWith("channel:"):
-        let k = p.returnKind[8 .. ^1]
-        lines.add("    const channelId = " & rawCall & ";")
-        lines.add("    return new NimTsChannel(channelId, \"" & k & "\");")
-      elif p.returnKind == "channel":
-        lines.add("    const channelId = " & rawCall & ";")
-        lines.add("    return new NimTsChannel(channelId, \"primitive\");")
-      elif p.returnKind == "object":
-        lines.add("    const packed = " & rawCall & ";")
-        lines.add("    const { ptr, len } = _unpackResult64(packed);")
-        lines.add("    const jsonStr = _readString(ptr, len);")
-        lines.add("    _free(ptr);")
-        lines.add("    return JSON.parse(jsonStr);")
-      else:
-        lines.add("    return " & rawCall & ";")
+      # Multiple overloads
+      # 1. Emit internal helper for each overload
+      for idx, p in procs:
+        let helperName = "_proc_" & name & "_" & $idx
+        for line in generateProcBody(p, helperName, false, meta):
+          lines.add(line)
 
-    lines.add("  } finally {")
-    for f in freeStmts: lines.add(f)
-    lines.add("  }")
-    lines.add("}")
-    lines.add("")
+      # 2. Emit dispatcher
+      let anyAsync = procs.anyIt(it.isAsync)
+      let asyncPrefix = if anyAsync: "async " else: ""
+      lines.add("export " & asyncPrefix & "function " & name & "(...args) {")
+      lines.add("  _assertInit();")
+
+      # Generate checks for each overload
+      for idx, p in procs:
+        let helperName = "_proc_" & name & "_" & $idx
+        var conds: seq[string] = @["args.length === " & $p.params.len]
+        for pIdx, param in p.params:
+          let argExpr = "args[" & $pIdx & "]"
+          case param.tsType
+          of "string":
+            conds.add("typeof " & argExpr & " === 'string'")
+          of "bigint":
+            conds.add("typeof " & argExpr & " === 'bigint'")
+          of "boolean":
+            conds.add("typeof " & argExpr & " === 'boolean'")
+          of "Uint8Array":
+            conds.add(argExpr & " instanceof Uint8Array")
+          of "number":
+            if param.nimType.startsWith("float"):
+              conds.add("typeof " & argExpr & " === 'number'")
+            elif param.nimType.startsWith("int") or param.nimType.startsWith("uint"):
+              conds.add("(typeof " & argExpr & " === 'number' && Number.isInteger(" & argExpr & "))")
+            else:
+              conds.add("typeof " & argExpr & " === 'number'")
+          else:
+            if param.nimType.contains("Handle") or meta.types.anyIt(it.name == param.tsType and it.isHandle):
+              conds.add("(" & argExpr & " instanceof " & param.tsType & " || (" & argExpr & " && typeof " & argExpr & ".handleId === 'number'))")
+            else:
+              conds.add("typeof " & argExpr & " === 'object'")
+
+        let callPrefix = if anyAsync and not p.isAsync: "return " elif anyAsync and p.isAsync: "return await " else: "return "
+        lines.add("  if (" & conds.join(" && ") & ") {")
+        lines.add("    " & callPrefix & helperName & "(...args);")
+        lines.add("  }")
+
+      # Fallback to the first overload
+      let defaultCall = if anyAsync and not procs[0].isAsync: "return _proc_" & name & "_0(...args);"
+                        elif anyAsync and procs[0].isAsync: "return await _proc_" & name & "_0(...args);"
+                        else: "return _proc_" & name & "_0(...args);"
+      lines.add("  " & defaultCall)
+      lines.add("}")
+      lines.add("")
 
   # Exports dictionary
   lines.add("const _exportsObj = {")
   lines.add("  NimTsIterator,")
   lines.add("  NimTsChannel,")
-  for p in meta.procs:
-    lines.add("  " & p.name & ",")
+  for name in procsByName.keys:
+    lines.add("  " & name & ",")
   lines.add("};")
+  lines.add("")
   lines.add("")
 
   # initNimTs with Gotcha 1 solution (instantiateStreaming + fallback)

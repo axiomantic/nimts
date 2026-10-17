@@ -21,7 +21,10 @@ import {
   AudioEngine,
   generateFrequencies,
   iterateFibonacci,
-  NimTsIterator
+  NimTsIterator,
+  streamWords,
+  streamNumbers,
+  NimTsChannel
 } from './fixtures/test_module.js';
 
 const WASM_FILE = path.resolve(__dirname, 'fixtures/test_module.wasm');
@@ -325,6 +328,33 @@ describe('NimTS WebAssembly Integration (Sync & Async)', () => {
 
       iter.dispose();
       expect(iter.handleId).toBe(0);
+    });
+  });
+
+  describe('Channels (NimTsChannel<T>) Live Consumer Wiring', () => {
+    it('creates and interacts with NimTsChannel[string] via streamWords', () => {
+      const words = ['hello', 'world', 'from', 'wasm'];
+      const chan = streamWords(words);
+      expect(chan).toBeInstanceOf(NimTsChannel);
+      expect(chan.channelId).toBeGreaterThan(0);
+      expect(chan.isClosed).toBe(false);
+
+      // Verify close lifecycle
+      chan.close();
+      expect(chan.isClosed).toBe(true);
+      expect(chan.channelId).toBe(0);
+    });
+
+    it('creates and interacts with NimTsChannel[int32] via streamNumbers', () => {
+      const chan = streamNumbers(10);
+      expect(chan).toBeInstanceOf(NimTsChannel);
+      expect(chan.channelId).toBeGreaterThan(0);
+      expect(chan.isClosed).toBe(false);
+
+      // Verify close lifecycle
+      chan.close();
+      expect(chan.isClosed).toBe(true);
+      expect(chan.channelId).toBe(0);
     });
   });
 });

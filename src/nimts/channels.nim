@@ -178,20 +178,27 @@ proc nimts_chan_try_recv*(chanId: int32, outPtr: ptr pointer, outLen: ptr int32)
   return 0 # empty
 
 proc nimts_chan_is_closed*(chanId: int32): int32 {.exportc: "nimts_chan_is_closed", cdecl.} =
-  if not gRawChannels.hasKey(chanId): return 1
-  let chan = gRawChannels[chanId]
-  return if chan.isClosed(): 1 else: 0
+  if gRawChannels.hasKey(chanId):
+    let chan = gRawChannels[chanId]
+    return if chan.isClosed(): 1 else: 0
+  if isHandleValid(chanId):
+    return 0
+  return 1
 
 proc nimts_chan_close*(chanId: int32) {.exportc: "nimts_chan_close", cdecl.} =
   if gRawChannels.hasKey(chanId):
     let chan = gRawChannels[chanId]
     chan.close()
+  elif isHandleValid(chanId):
+    releaseHandle(chanId)
 
 proc nimts_chan_destroy*(chanId: int32) {.exportc: "nimts_chan_destroy", cdecl.} =
   if gRawChannels.hasKey(chanId):
     let chan = gRawChannels[chanId]
     chan.close()
     gRawChannels.del(chanId)
+  elif isHandleValid(chanId):
+    releaseHandle(chanId)
 
 # Module-namespaced C-ABI aliases
 proc nimts_core_chan_send*(chanId: int32, dataPtr: pointer, dataLen: int32): int32 {.exportc: "nimts_core_chan_send", cdecl.} =

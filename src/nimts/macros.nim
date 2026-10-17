@@ -44,7 +44,7 @@ proc cleanName(node: NimNode): (string, NimNode) =
 proc classifyParamType(typeNode: NimNode): (ParamKind, string, string) =
   let typeRepr = typeNode.repr.strip
   case typeRepr
-  of "int", "int32", "int16", "int8", "uint", "uint32", "uint16", "uint8", "float", "float32", "float64", "bool", "char":
+  of "int", "int32", "int16", "int8", "uint", "uint32", "uint16", "uint8", "int64", "uint64", "float", "float32", "float64", "bool", "char":
     return (pkPrimitive, typeRepr, mapNimTypeToTs(typeRepr))
   of "string", "cstring":
     return (pkString, typeRepr, "string")
@@ -56,7 +56,7 @@ proc classifyParamType(typeNode: NimNode): (ParamKind, string, string) =
         return (pkHandle, typeRepr, typeRepr)
     if typeRepr.contains("Handle") or typeRepr.startsWith("ref "):
       return (pkHandle, typeRepr, typeRepr.replace("ref ", ""))
-    return (pkObject, typeRepr, typeRepr)
+    return (pkObject, typeRepr, mapNimTypeToTs(typeRepr))
 
 proc classifyReturnType(retNode: NimNode): (string, string, bool, string) =
   # returns (nimType, tsType, isAsync, returnKind)
@@ -128,7 +128,7 @@ proc classifyReturnType(retNode: NimNode): (string, string, bool, string) =
         return (retRepr, retRepr, false, "handle")
     if retRepr.contains("Handle") or retRepr.startsWith("ref "):
       return (retRepr, retRepr.replace("ref ", ""), false, "handle")
-    return (retRepr, retRepr, false, "object")
+    return (retRepr, mapNimTypeToTs(retRepr), false, "object")
 
 proc processExportTs*(body: NimNode): NimNode =
   result = newStmtList()
@@ -276,7 +276,7 @@ elif typeof(res) is Future:
 elif typeof(res) is NimTsIterator:
   return res.HandleId
 elif typeof(res) is NimTsChannel:
-  return res.HandleId
+  return registerHandle(res)
 elif typeof(res) is ref object:
   return registerHandle(res)
 else:

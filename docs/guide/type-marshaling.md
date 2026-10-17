@@ -18,6 +18,8 @@ NimTS handles data conversion between Nim and TypeScript through compile-time co
 | `ref object` | `Class` | Opaque `HandleId` with `FinalizationRegistry` binding |
 | `object`, `tuple` | `interface` | Automatic JSON serialization / deserialization |
 | `Future[T]` | `Promise<T>` | Bidirectional non-blocking `PromiseId` bridge |
+| `NimTsIterator[T]` | `NimTsIterator<T>` (`IterableIterator<T>`) | Closure iterator handle stepping via monotonic slot registry |
+| `NimTsChannel[T]` | `NimTsChannel<T>` (`AsyncIterable<T>`) | Lock-free SPSC circular queue with backpressure |
 
 ---
 
