@@ -14,6 +14,18 @@ var
   gErrMsg: string = ""
   gResolvedIsErr: bool = false
 
+type CustomMockFuture[T] = ref object
+  done: bool
+  val: T
+  callbacks: seq[proc() {.gcsafe.}]
+
+proc completed[T](f: CustomMockFuture[T]): bool = f.done
+proc failed[T](f: CustomMockFuture[T]): bool = false
+proc read[T](f: CustomMockFuture[T]): T = f.val
+proc addCallback[T](f: CustomMockFuture[T], cb: proc() {.gcsafe.}) =
+  if f.done: cb()
+  else: f.callbacks.add(cb)
+
 suite "NimTS Async Bridge Verification":
 
   test "PromiseId and FutureId allocation is monotonic":
@@ -117,3 +129,21 @@ suite "NimTS Async Bridge Verification":
     check fut.failed
     expect NimTsError:
       discard fut.read
+
+  test "bridgeAnyFutureToPromise adapts custom future conforming to AnyFuture":
+    let mockFut = CustomMockFuture[int32](done: true, val: 999'i32, callbacks: @[])
+    gResolvedPid = -1
+    gResolvedVal = -1
+    gResolvedIsErr = true
+
+    gMockHandler = proc(pid: int32, dataPtr: pointer, dataLen: int32, isError: bool) {.gcsafe.} =
+      {.cast(gcsafe).}:
+        gResolvedPid = pid
+        gResolvedIsErr = isError
+        if dataPtr != nil and dataLen >= sizeof(int32):
+          gResolvedVal = cast[ptr int32](dataPtr)[]
+
+    let pid = bridgeAnyFutureToPromise[CustomMockFuture[int32], int32](mockFut)
+    check gResolvedPid == pid.int32
+    check gResolvedIsErr == false
+    check gResolvedVal == 999'i32
