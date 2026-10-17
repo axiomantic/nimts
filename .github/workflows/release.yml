@@ -1,0 +1,82 @@
+name: Release & Publish
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to release (e.g. v0.1.0)'
+        required: false
+        default: 'v0.1.0'
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Set up Nim
+        uses: nim-lang/setup-nim-action@v1
+        with:
+          nim-version: '2.2.0'
+
+      - name: Install LLVM & WebAssembly Toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang lld llvm
+          if ! command -v wasm-ld &>/dev/null; then
+            WASM_LD_CANDIDATE=$(compgen -c wasm-ld- | head -1 || echo "")
+            if [[ -n "${WASM_LD_CANDIDATE}" ]]; then
+              sudo ln -sf "$(command -v "${WASM_LD_CANDIDATE}")" /usr/local/bin/wasm-ld
+            fi
+          fi
+          WASI_VERSION=22
+          WASI_VERSION_FULL=${WASI_VERSION}.0
+          wget -q https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-${WASI_VERSION}/wasi-sysroot-${WASI_VERSION_FULL}.tar.gz
+          sudo tar -xzf wasi-sysroot-${WASI_VERSION_FULL}.tar.gz -C /usr/share/
+          echo "WASI_SYSROOT=/usr/share/wasi-sysroot" >> $GITHUB_ENV
+          echo "CLANG_BIN=clang" >> $GITHUB_ENV
+          echo "WASM_LD_BIN=wasm-ld" >> $GITHUB_ENV
+
+      - name: Install Node dependencies
+        run: npm ci
+
+      - name: Build TypeScript code
+        run: npm run build
+
+      - name: Run Nimble tests
+        run: nimble test
+
+      - name: Run Vitest tests
+        run: npm test
+
+      - name: Package tarball
+        run: npm pack
+
+      - name: Publish to NPM
+        if: env.NPM_TOKEN != ''
+        run: npm publish --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: nimts-*.tgz
+          generate_release_notes: true

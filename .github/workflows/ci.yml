@@ -27,15 +27,22 @@ jobs:
           cache: 'npm'
 
       - name: Set up Nim ${{ matrix.nim-version }}
-        uses: jason079/setup-nim@v1
+        uses: nim-lang/setup-nim-action@v1
         with:
-          version: ${{ matrix.nim-version }}
+          nim-version: ${{ matrix.nim-version }}
 
       - name: Install LLVM & WebAssembly Toolchain (Ubuntu)
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y clang lld llvm
+          # Ensure wasm-ld is on PATH
+          if ! command -v wasm-ld &>/dev/null; then
+            WASM_LD_CANDIDATE=$(compgen -c wasm-ld- | head -1 || echo "")
+            if [[ -n "${WASM_LD_CANDIDATE}" ]]; then
+              sudo ln -sf "$(command -v "${WASM_LD_CANDIDATE}")" /usr/local/bin/wasm-ld
+            fi
+          fi
           # Install wasi-sysroot
           WASI_VERSION=22
           WASI_VERSION_FULL=${WASI_VERSION}.0
@@ -49,6 +56,8 @@ jobs:
         if: runner.os == 'macOS'
         run: |
           brew install llvm wasi-sysroot || true
+          echo "/opt/homebrew/opt/llvm/bin" >> $GITHUB_PATH
+          echo "/opt/homebrew/bin" >> $GITHUB_PATH
           echo "CLANG_BIN=/opt/homebrew/opt/llvm/bin/clang" >> $GITHUB_ENV
           echo "WASM_LD_BIN=/opt/homebrew/bin/wasm-ld" >> $GITHUB_ENV
           echo "WASI_SYSROOT=/opt/homebrew/share/wasi-sysroot" >> $GITHUB_ENV
