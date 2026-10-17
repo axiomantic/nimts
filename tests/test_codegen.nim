@@ -128,3 +128,39 @@ suite "NimTS Code Generation Verification":
     check js.contains("export function resetState()")
     check js.contains("return Boolean(_exports.nimts_isValid(id));")
     check js.contains("JSON.parse(jsonStr);")
+
+  test "generateJs generates DataView-based _readPrimitive and _resolveValue for safe primitive parsing":
+    let meta = TsModuleMeta(
+      name: "safe_primitives",
+      wasmFileName: "safe_primitives.wasm",
+      types: @[],
+      procs: @[
+        TsProc(
+          name: "fetchFloatAsync",
+          cabiName: "nimts_fetchFloatAsync",
+          params: @[],
+          returnNimType: "Future[float64]",
+          returnTsType: "Promise<number>",
+          isAsync: true,
+          isHandleReturn: false,
+          returnKind: "float64"
+        ),
+        TsProc(
+          name: "fetchBoolAsync",
+          cabiName: "nimts_fetchBoolAsync",
+          params: @[],
+          returnNimType: "Future[bool]",
+          returnTsType: "Promise<boolean>",
+          isAsync: true,
+          isHandleReturn: false,
+          returnKind: "bool"
+        )
+      ]
+    )
+
+    let js = generateJs(meta)
+    check js.contains("function _readPrimitive(bufOrPtr, len, kind)")
+    check js.contains("new DataView(")
+    check js.contains("function _resolveValue(ptrOrBuf, len, kind)")
+    check js.contains("view.getFloat64(0, true)")
+    check js.contains("view.getInt32(0, true) !== 0")

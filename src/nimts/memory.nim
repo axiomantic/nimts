@@ -7,6 +7,7 @@ import types
 type
   HandleEntry = object
     rawPtr: pointer
+    typeName: string
     destructor: proc(raw: pointer)
 
 var
@@ -68,8 +69,10 @@ proc registerHandle*[T: ref object](obj: T): HandleId =
   inc gHandleCounter
   GC_ref(obj)
   let p = cast[pointer](obj)
+  let tName = $typeof(T)
   gHandleTable[result] = HandleEntry(
     rawPtr: p,
+    typeName: tName,
     destructor: proc(raw: pointer) =
       let typedObj = cast[T](raw)
       GC_unref(typedObj)
@@ -78,8 +81,18 @@ proc registerHandle*[T: ref object](obj: T): HandleId =
 proc getHandle*[T: ref object](h: HandleId): T =
   if h == InvalidHandleId: return nil
   if gHandleTable.hasKey(h):
-    return cast[T](gHandleTable[h].rawPtr)
+    let entry = gHandleTable[h]
+    let expectedName = $typeof(T)
+    if entry.typeName == expectedName:
+      return cast[T](entry.rawPtr)
+    # Type mismatch prevents memory corruption / type confusion
+    return nil
   return nil
+
+proc getHandleTypeName*(h: HandleId): string =
+  if h != InvalidHandleId and gHandleTable.hasKey(h):
+    return gHandleTable[h].typeName
+  return ""
 
 proc releaseHandle*(h: HandleId) =
   if h != InvalidHandleId and gHandleTable.hasKey(h):

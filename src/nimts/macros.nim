@@ -3,12 +3,14 @@
 
 import std/macros
 import std/strutils
+import std/tables
 import std/json
 import codegen
 
 var
   gExportedProcs {.compileTime.}: seq[TsProc] = @[]
   gExportedTypes {.compileTime.}: seq[TsType] = @[]
+  gProcCounts {.compileTime.}: Table[string, int] = initTable[string, int]()
 
 type
   ParamKind = enum
@@ -56,14 +58,29 @@ proc classifyReturnType(retNode: NimNode): (string, string, bool, string) =
     let inner = retRepr[7 .. ^2]
     let innerTs = mapNimTypeToTs(inner)
     let innerKind = case inner
-      of "int", "int32", "int16", "int8", "uint", "uint32", "uint16", "uint8", "float", "float32", "float64", "bool": "primitive"
+      of "int", "int32", "int16", "int8", "uint", "uint32", "uint16", "uint8": "int32"
+      of "int64", "uint64": "int64"
+      of "float", "float32": "float32"
+      of "float64": "float64"
+      of "bool": "bool"
       of "string", "cstring": "string"
       of "seq[byte]", "openArray[byte]", "seq[uint8]", "openArray[uint8]": "bytes"
+      of "void", "": "void"
       else: "object"
     return (retRepr, "Promise<" & innerTs & ">", true, innerKind)
   case retRepr
-  of "int", "int32", "int16", "int8", "uint", "uint32", "uint16", "uint8", "float", "float32", "float64", "bool", "char":
-    return (retRepr, mapNimTypeToTs(retRepr), false, "primitive")
+  of "int", "int32", "int16", "int8", "uint", "uint32", "uint16", "uint8":
+    return (retRepr, mapNimTypeToTs(retRepr), false, "int32")
+  of "int64", "uint64":
+    return (retRepr, "bigint", false, "int64")
+  of "float", "float32":
+    return (retRepr, "number", false, "float32")
+  of "float64":
+    return (retRepr, "number", false, "float64")
+  of "bool":
+    return (retRepr, "boolean", false, "bool")
+  of "char":
+    return (retRepr, "string", false, "char")
   of "string", "cstring":
     return (retRepr, "string", false, "string")
   of "seq[byte]", "openArray[byte]", "seq[uint8]", "openArray[uint8]":
@@ -82,7 +99,13 @@ proc processExportTs*(body: NimNode): NimNode =
   if body.kind == nnkProcDef:
     var procDef = body
     let (procNameStr, baseIdent) = cleanName(procDef[0])
-    let cabiNameStr = "nimts_" & procNameStr
+    var cabiNameStr = "nimts_" & procNameStr
+    if gProcCounts.hasKey(procNameStr):
+      let count = gProcCounts[procNameStr] + 1
+      gProcCounts[procNameStr] = count
+      cabiNameStr = "nimts_" & procNameStr & "_" & $count
+    else:
+      gProcCounts[procNameStr] = 0
     let cabiIdent = ident(cabiNameStr)
 
     # 1. Clean pragmas on the original proc (remove exportts pragma)
@@ -307,3 +330,8 @@ macro emitTsGlueFiles*(moduleName: static[string], outputDir: static[string] = "
 
 proc getExportedProcsCount*(): int {.compileTime.} = gExportedProcs.len
 proc getExportedTypesCount*(): int {.compileTime.} = gExportedTypes.len
+proc resetExportedRegistrations*() {.compileTime.} =
+  gExportedProcs = @[]
+  gExportedTypes = @[]
+  gProcCounts.clear()
+

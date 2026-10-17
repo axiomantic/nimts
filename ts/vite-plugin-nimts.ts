@@ -77,6 +77,28 @@ export function nimtsPlugin(options: NimTsPluginOptions = {}): Plugin {
       }
 
       if (needBuild) {
+        // Preflight toolchain diagnostic check
+        try {
+          await execFileAsync(nimBin, ['--version']);
+        } catch (err: any) {
+          throw new Error(`nimts: Nim compiler not found at "${nimBin}". Please install Nim or specify options.nimBin.\nDetails: ${err?.message || err}`);
+        }
+        try {
+          await execFileAsync(clangBin, ['--version']);
+        } catch (err: any) {
+          throw new Error(`nimts: Clang / LLVM not found at "${clangBin}". Please install LLVM (brew install llvm on macOS, apt-get install clang on Linux) or specify options.clangBin.\nDetails: ${err?.message || err}`);
+        }
+        try {
+          await execFileAsync(wasmldBin, ['--version']);
+        } catch (err: any) {
+          throw new Error(`nimts: wasm-ld linker not found at "${wasmldBin}". Please install lld (brew install llvm or brew install lld) or specify options.wasmldBin.\nDetails: ${err?.message || err}`);
+        }
+        try {
+          await fs.access(sysroot);
+        } catch (_) {
+          throw new Error(`nimts: WASI sysroot not found at "${sysroot}". Please install wasi-libc (brew install wasi-libc on macOS, apt-get install wasi-libc on Linux) or specify options.sysroot.`);
+        }
+
         // Compile Nim to C
         const nimcacheDir = path.resolve(cacheDir, 'nimcache');
         await fs.mkdir(nimcacheDir, { recursive: true });
@@ -85,10 +107,8 @@ export function nimtsPlugin(options: NimTsPluginOptions = {}): Plugin {
           'c',
           '-c',
           '-d:emscripten',
-          '-d:danger',
+          '-d:release',
           '--opt:speed',
-          '--panics:on',
-          '--checks:off',
           '--cpu:wasm32',
           `-p:${path.resolve(__dirname, '../src')}`,
           `--nimcache:${nimcacheDir}`,

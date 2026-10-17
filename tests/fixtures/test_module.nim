@@ -48,6 +48,12 @@ proc asyncAdd*(a: int32, b: int32): Future[int32] {.async, exportts.} =
 proc asyncEcho*(msg: string): Future[string] {.async, exportts.} =
   return "Async: " & msg
 
+proc asyncComputeFloat*(x: float64): Future[float64] {.async, exportts.} =
+  return x * 2.5
+
+proc asyncCheckBool*(flag: bool): Future[bool] {.async, exportts.} =
+  return not flag
+
 var gLastFid: int32 = 0
 
 proc startPendingOperation*(): Future[string] {.exportts.} =

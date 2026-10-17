@@ -16,6 +16,8 @@ import {
   processConfig,
   asyncAdd,
   asyncEcho,
+  asyncComputeFloat,
+  asyncCheckBool,
   AudioEngine
 } from './fixtures/test_module.js';
 
@@ -93,6 +95,18 @@ describe('NimTS WebAssembly Integration (Sync & Async)', () => {
       expect(promise).toBeInstanceOf(Promise);
       const res = await promise;
       expect(res).toBe('Async: Autonomous Synthesis');
+    });
+
+    it('resolves Nim Future[float64] as JS Promise<number> without bit corruption', async () => {
+      const res = await asyncComputeFloat(12.5);
+      expect(res).toBeCloseTo(31.25, 4);
+    });
+
+    it('resolves Nim Future[bool] as JS Promise<boolean> accurately', async () => {
+      const resFalse = await asyncCheckBool(true);
+      expect(resFalse).toBe(false);
+      const resTrue = await asyncCheckBool(false);
+      expect(resTrue).toBe(true);
     });
 
     it('resumes a pending Nim Future from JS via nimts_resume_future', async () => {

@@ -73,6 +73,9 @@ proc bridgeFutureToPromise*[T](fut: Future[T]): PromiseId =
       elif T is int32:
         var val = f.read
         nimts_js_resolve_promise(pid.int32, addr val, sizeof(val).int32)
+      elif T is int64:
+        var val = f.read
+        nimts_js_resolve_promise(pid.int32, addr val, sizeof(val).int32)
       elif T is bool:
         var val: int32 = if f.read: 1 else: 0
         nimts_js_resolve_promise(pid.int32, addr val, sizeof(val).int32)
@@ -105,22 +108,37 @@ proc registerPendingFuture*[T](fid: FutureId, fut: Future[T]) =
         fut.complete(readBytes(cast[ptr uint8](dataPtr), dataLen))
       elif T is int32:
         if dataLen >= sizeof(int32) and dataPtr != nil:
-          fut.complete(cast[ptr int32](dataPtr)[])
+          var val: int32
+          copyMem(addr val, dataPtr, sizeof(int32))
+          fut.complete(val)
         else:
           fut.complete(0)
+      elif T is int64:
+        if dataLen >= sizeof(int64) and dataPtr != nil:
+          var val: int64
+          copyMem(addr val, dataPtr, sizeof(int64))
+          fut.complete(val)
+        else:
+          fut.complete(0'i64)
       elif T is bool:
         if dataLen >= sizeof(int32) and dataPtr != nil:
-          fut.complete(cast[ptr int32](dataPtr)[] != 0)
+          var val: int32
+          copyMem(addr val, dataPtr, sizeof(int32))
+          fut.complete(val != 0)
         else:
           fut.complete(false)
       elif T is float32:
         if dataLen >= sizeof(float32) and dataPtr != nil:
-          fut.complete(cast[ptr float32](dataPtr)[])
+          var val: float32
+          copyMem(addr val, dataPtr, sizeof(float32))
+          fut.complete(val)
         else:
           fut.complete(0.0'f32)
       elif T is float64:
         if dataLen >= sizeof(float64) and dataPtr != nil:
-          fut.complete(cast[ptr float64](dataPtr)[])
+          var val: float64
+          copyMem(addr val, dataPtr, sizeof(float64))
+          fut.complete(val)
         else:
           fut.complete(0.0'f64)
       else:

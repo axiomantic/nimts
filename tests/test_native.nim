@@ -37,6 +37,12 @@ proc renderSynthAsync*(synth: AudioSynth, frames: int32): Future[int32] {.async,
   if synth == nil: return 0
   return synth.voiceCount * frames
 
+proc formatValue*(val: int32): string {.exportts.} =
+  "int:" & $val
+
+proc formatValue*(val: float32): string {.exportts.} =
+  "float:" & $val
+
 suite "Native Nim {.exportts.} Non-Invasive Verification":
 
   test "Direct invocation with primitive arguments and returns":
@@ -67,4 +73,8 @@ suite "Native Nim {.exportts.} Non-Invasive Verification":
     let fut = renderSynthAsync(synth, 128)
     let val = waitFor fut
     check val == 8 * 128
+
+  test "Direct invocation with overloaded procs":
+    check formatValue(42'i32) == "int:42"
+    check formatValue(3.14'f32) == "float:3.14"
 

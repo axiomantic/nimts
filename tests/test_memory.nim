@@ -110,3 +110,19 @@ suite "NimTS Memory and Handle Management":
     let h = registerHandle(nilWidget)
     check h == InvalidHandleId
     check getHandle[TestWidget](InvalidHandleId) == nil
+
+  test "Handle type mismatch prevention (type safety)":
+    type OtherType = ref object
+      val: int
+
+    let w = TestWidget(id: 42, name: "Gadget")
+    let h = registerHandle(w)
+    check getHandleTypeName(h) == "TestWidget"
+
+    # Querying with correct type succeeds
+    check getHandle[TestWidget](h) != nil
+
+    # Querying with mismatched type safely returns nil instead of corrupting memory
+    check getHandle[OtherType](h) == nil
+
+    releaseHandle(h)

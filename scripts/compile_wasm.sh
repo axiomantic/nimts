@@ -55,7 +55,7 @@ rm -rf "${NIMCACHE_DIR}"
 mkdir -p "${NIMCACHE_DIR}"
 
 echo "==> 1. Generating C sources from ${INPUT_NIM} via Nim..."
-nim c -c -d:emscripten -d:danger --opt:speed --panics:on --checks:off --cpu:wasm32 \
+nim c -c -d:emscripten -d:release --opt:speed --cpu:wasm32 \
   -p:"${ROOT_DIR}/src" \
   --nimcache:"${NIMCACHE_DIR}" \
   "${INPUT_NIM}"
