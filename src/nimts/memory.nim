@@ -2,6 +2,7 @@
 # Licensed under MIT License.
 
 import std/tables
+import std/json
 import types
 
 type
@@ -53,6 +54,11 @@ proc allocBytesResult*(bytes: openArray[byte]): uint64 =
   copyMem(p, unsafeAddr bytes[0], bytes.len)
   result = packBuffer(p, bytes.len.int32)
 
+proc allocPrimitiveResult*[T](val: T): uint64 =
+  var p = cast[ptr T](alloc0(sizeof(T)))
+  p[] = val
+  result = packBuffer(p, sizeof(T).int32)
+
 proc readString*(p: ptr char, len: int32): string =
   if p == nil or len <= 0: return ""
   result = newString(len)
@@ -102,6 +108,74 @@ proc releaseHandle*(h: HandleId) =
       entry.destructor(entry.rawPtr)
 
 proc nimts_destroy_handle*(h: HandleId) {.exportc: "nimts_destroy_handle", cdecl.} =
+  releaseHandle(h)
+
+proc createClosureIterSlot*[T](it: iterator(): T {.closure.}): ClosureIterSlot[T] =
+  let slot = ClosureIterSlot[T](iter: it, finished: false)
+  slot.step = proc(): uint64 =
+    if slot.finished or slot.iter.isNil:
+      slot.finished = true
+      return 0'u64
+    let val = slot.iter()
+    if finished(slot.iter):
+      slot.finished = true
+      return 0'u64
+    when T is (SomeInteger or SomeFloat or bool or char):
+      return allocPrimitiveResult(val)
+    elif T is string:
+      return allocStringResult(val)
+    elif T is (seq[byte] or seq[uint8]):
+      return allocBytesResult(val)
+    elif T is ref object:
+      let h = registerHandle(val)
+      return allocPrimitiveResult(h)
+    else:
+      return allocStringResult($(%*(val)))
+  return slot
+
+proc registerIterSlot*(slot: ClosureIterSlotBase): HandleId =
+  if slot.isNil: return InvalidHandleId
+  result = gHandleCounter
+  inc gHandleCounter
+  GC_ref(slot)
+  gHandleTable[result] = HandleEntry(
+    rawPtr: cast[pointer](slot),
+    typeName: "ClosureIterSlot",
+    destructor: proc(raw: pointer) =
+      let typedObj = cast[ClosureIterSlotBase](raw)
+      typedObj.finished = true
+      GC_unref(typedObj)
+  )
+
+proc getIterHandle*(h: HandleId): ClosureIterSlotBase =
+  if h == InvalidHandleId: return nil
+  if gHandleTable.hasKey(h):
+    let entry = gHandleTable[h]
+    if entry.typeName == "ClosureIterSlot":
+      return cast[ClosureIterSlotBase](entry.rawPtr)
+  return nil
+
+proc newNimTsIterator*[T](it: iterator(): T {.closure.}): NimTsIterator[T] =
+  let slot = createClosureIterSlot[T](it)
+  let hid = registerIterSlot(slot)
+  return NimTsIterator[T](hid)
+
+proc nimts_iter_next*(h: HandleId): uint64 {.exportc: "nimts_iter_next", cdecl.} =
+  let slot = getIterHandle(h)
+  if slot.isNil or slot.finished:
+    return 0'u64
+  let res = slot.step()
+  if slot.finished:
+    releaseHandle(h)
+  return res
+
+proc nimts_iter_finished*(h: HandleId): int32 {.exportc: "nimts_iter_finished", cdecl.} =
+  let slot = getIterHandle(h)
+  if slot.isNil or slot.finished:
+    return 1'i32
+  return 0'i32
+
+proc nimts_iter_dispose*(h: HandleId) {.exportc: "nimts_iter_dispose", cdecl.} =
   releaseHandle(h)
 
 proc activeHandleCount*(): int =

@@ -7,6 +7,15 @@ type
   FutureId* = int32
 
   NimTsHandle*[T] = distinct HandleId
+  NimTsIterator*[T] = distinct HandleId
+  NimTsChannel*[T] = distinct HandleId
+
+  ClosureIterSlotBase* = ref object of RootObj
+    finished*: bool
+    step*: proc(): uint64 {.closure.}
+
+  ClosureIterSlot*[T] = ref object of ClosureIterSlotBase
+    iter*: iterator(): T {.closure.}
 
   NimTsBuffer* = object
     data*: ptr uint8
@@ -17,6 +26,12 @@ type
 
 proc `==`*[T](a, b: NimTsHandle[T]): bool = a.HandleId == b.HandleId
 proc `$`*[T](h: NimTsHandle[T]): string = "NimTsHandle[" & $typeof(T) & "](" & $h.HandleId & ")"
+
+proc `==`*[T](a, b: NimTsIterator[T]): bool = a.HandleId == b.HandleId
+proc `$`*[T](it: NimTsIterator[T]): string = "NimTsIterator[" & $typeof(T) & "](" & $it.HandleId & ")"
+
+proc `==`*[T](a, b: NimTsChannel[T]): bool = a.HandleId == b.HandleId
+proc `$`*[T](ch: NimTsChannel[T]): string = "NimTsChannel[" & $typeof(T) & "](" & $ch.HandleId & ")"
 
 const
   InvalidHandleId*: HandleId = 0

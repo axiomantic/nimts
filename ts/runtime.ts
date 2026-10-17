@@ -15,6 +15,23 @@ export interface NimTsExports {
   [key: string]: any;
 }
 
+export interface NimTsIterator<T> extends IterableIterator<T> {
+  readonly handleId: number;
+  next(): IteratorResult<T, undefined>;
+  return(): IteratorResult<T, undefined>;
+  dispose(): void;
+  [Symbol.iterator](): IterableIterator<T>;
+}
+
+export interface NimTsChannel<T> extends AsyncIterable<T> {
+  readonly channelId: number;
+  next(): Promise<IteratorResult<T, undefined>>;
+  return(): Promise<IteratorResult<T, undefined>>;
+  close(): void;
+  send?(item: T): boolean;
+  [Symbol.asyncIterator](): AsyncIterator<T>;
+}
+
 export class NimTsRuntime {
   public instance: WebAssembly.Instance | null = null;
   public exports: NimTsExports | null = null;

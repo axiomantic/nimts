@@ -126,3 +126,73 @@ suite "NimTS Memory and Handle Management":
     check getHandle[OtherType](h) == nil
 
     releaseHandle(h)
+
+  test "Closure iterator slot allocation, stepping, and deterministic teardown":
+    let initialCount = activeHandleCount()
+
+    let it = iterator(): int32 {.closure.} =
+      yield 100
+      yield 200
+      yield 300
+
+    let iterHandle = newNimTsIterator[int32](it)
+    let hid = iterHandle.HandleId
+    check hid != InvalidHandleId
+    check activeHandleCount() == initialCount + 1
+    check nimts_iter_finished(hid) == 0
+
+    # Step 1
+    let p1 = nimts_iter_next(hid)
+    check p1 != 0'u64
+    let ptrVal1 = cast[ptr int32](gLastResultPtr)
+    check ptrVal1[] == 100
+    nimts_free(gLastResultPtr)
+
+    # Step 2
+    let p2 = nimts_iter_next(hid)
+    check p2 != 0'u64
+    let ptrVal2 = cast[ptr int32](gLastResultPtr)
+    check ptrVal2[] == 200
+    nimts_free(gLastResultPtr)
+
+    # Step 3
+    let p3 = nimts_iter_next(hid)
+    check p3 != 0'u64
+    let ptrVal3 = cast[ptr int32](gLastResultPtr)
+    check ptrVal3[] == 300
+    nimts_free(gLastResultPtr)
+
+    # Step 4: Finished
+    let p4 = nimts_iter_next(hid)
+    check p4 == 0'u64
+    check nimts_iter_finished(hid) == 1
+    # Auto-released on completion
+    check activeHandleCount() == initialCount
+
+  test "Closure iterator early disposal and NEG-03 safe use-after-free":
+    let initialCount = activeHandleCount()
+
+    let it = iterator(): string {.closure.} =
+      yield "one"
+      yield "two"
+      yield "three"
+
+    let iterHandle = newNimTsIterator[string](it)
+    let hid = iterHandle.HandleId
+    check activeHandleCount() == initialCount + 1
+
+    # Read first element
+    let p1 = nimts_iter_next(hid)
+    check p1 != 0'u64
+    let s1 = readString(cast[ptr char](gLastResultPtr), gLastResultLen)
+    check s1 == "one"
+    nimts_free(gLastResultPtr)
+
+    # Early disposal (e.g. break in loop)
+    nimts_iter_dispose(hid)
+    check activeHandleCount() == initialCount
+    check nimts_iter_finished(hid) == 1
+
+    # NEG-03: calling next after dispose returns 0 without crashing or memory corruption
+    let pAfter = nimts_iter_next(hid)
+    check pAfter == 0'u64

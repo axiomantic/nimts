@@ -66,5 +66,22 @@ proc startPendingOperation*(): Future[string] {.exportts.} =
 proc getLastFutureId*(): int32 {.exportc: "nimts_getLastFutureId", cdecl.} =
   return gLastFid
 
+proc generateFrequencies*(root: float32, count: int32): NimTsIterator[float32] {.exportts.} =
+  let it = iterator(): float32 {.closure.} =
+    for i in 1 .. count:
+      yield root * i.float32
+  return newNimTsIterator[float32](it)
+
+proc iterateFibonacci*(n: int32): NimTsIterator[int32] {.exportts.} =
+  let it = iterator(): int32 {.closure.} =
+    var a = 0'i32
+    var b = 1'i32
+    for i in 0 ..< n:
+      yield a
+      let next = a + b
+      a = b
+      b = next
+  return newNimTsIterator[int32](it)
+
 static:
   emitTsGlueFiles("test_module", "tests/fixtures")

@@ -68,6 +68,32 @@ proc classifyReturnType(retNode: NimNode): (string, string, bool, string) =
       of "void", "": "void"
       else: "object"
     return (retRepr, "Promise<" & innerTs & ">", true, innerKind)
+  if retRepr.startsWith("NimTsIterator[") and retRepr.endsWith("]"):
+    let inner = retRepr[14 .. ^2]
+    let innerTs = mapNimTypeToTs(inner)
+    let innerKind = case inner
+      of "int", "int32", "int16", "int8", "uint", "uint32", "uint16", "uint8": "int32"
+      of "int64", "uint64": "int64"
+      of "float", "float32": "float32"
+      of "float64": "float64"
+      of "bool": "bool"
+      of "string", "cstring": "string"
+      of "seq[byte]", "openArray[byte]", "seq[uint8]", "openArray[uint8]": "bytes"
+      else: "object"
+    return (retRepr, "NimTsIterator<" & innerTs & ">", false, "iterator:" & innerKind)
+  if retRepr.startsWith("NimTsChannel[") and retRepr.endsWith("]"):
+    let inner = retRepr[13 .. ^2]
+    let innerTs = mapNimTypeToTs(inner)
+    let innerKind = case inner
+      of "int", "int32", "int16", "int8", "uint", "uint32", "uint16", "uint8": "int32"
+      of "int64", "uint64": "int64"
+      of "float", "float32": "float32"
+      of "float64": "float64"
+      of "bool": "bool"
+      of "string", "cstring": "string"
+      of "seq[byte]", "openArray[byte]", "seq[uint8]", "openArray[uint8]": "bytes"
+      else: "object"
+    return (retRepr, "NimTsChannel<" & innerTs & ">", false, "channel:" & innerKind)
   case retRepr
   of "int", "int32", "int16", "int8", "uint", "uint32", "uint16", "uint8":
     return (retRepr, mapNimTypeToTs(retRepr), false, "int32")
@@ -218,6 +244,10 @@ elif typeof(res) is (seq[byte] or seq[uint8]):
   return allocBytesResult(res)
 elif typeof(res) is Future:
   return bridgeFutureToPromise(res)
+elif typeof(res) is NimTsIterator:
+  return res.HandleId
+elif typeof(res) is NimTsChannel:
+  return res.HandleId
 elif typeof(res) is ref object:
   return registerHandle(res)
 else:

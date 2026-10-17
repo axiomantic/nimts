@@ -18,7 +18,10 @@ import {
   asyncEcho,
   asyncComputeFloat,
   asyncCheckBool,
-  AudioEngine
+  AudioEngine,
+  generateFrequencies,
+  iterateFibonacci,
+  NimTsIterator
 } from './fixtures/test_module.js';
 
 const WASM_FILE = path.resolve(__dirname, 'fixtures/test_module.wasm');
@@ -228,6 +231,100 @@ describe('NimTS WebAssembly Integration (Sync & Async)', () => {
       const bytes = await fs.readFile(WASM_FILE);
       const module = await WebAssembly.compile(bytes);
       expect(module).toBeInstanceOf(WebAssembly.Module);
+    });
+  });
+
+  describe('Closure Iterators (NimTsIterator<T>) & IterableIterator<T>', () => {
+    it('synchronously steps through float32 frequencies with for..of', () => {
+      const iter = generateFrequencies(440.0, 4);
+      expect(iter).toBeInstanceOf(NimTsIterator);
+      expect(iter.handleId).toBeGreaterThan(0);
+
+      const values: number[] = [];
+      for (const freq of iter) {
+        values.push(freq);
+      }
+
+      expect(values.length).toBe(4);
+      expect(values[0]).toBeCloseTo(440.0, 2);
+      expect(values[1]).toBeCloseTo(880.0, 2);
+      expect(values[2]).toBeCloseTo(1320.0, 2);
+      expect(values[3]).toBeCloseTo(1760.0, 2);
+
+      // Handle auto-disposed upon exhaustion
+      expect(iter.handleId).toBe(0);
+    });
+
+    it('supports native array spread operator [...iter]', () => {
+      const fibs = [...iterateFibonacci(8)];
+      expect(fibs).toEqual([0, 1, 1, 2, 3, 5, 8, 13]);
+    });
+
+    it('early loop exit (break) triggers return() and deterministic disposal', () => {
+      const iter = iterateFibonacci(100);
+      expect(iter.handleId).toBeGreaterThan(0);
+
+      const collected: number[] = [];
+      for (const n of iter) {
+        collected.push(n);
+        if (collected.length === 5) break;
+      }
+
+      expect(collected).toEqual([0, 1, 1, 2, 3]);
+      // break invoked iter.return(), which disposed the handle
+      expect(iter.handleId).toBe(0);
+    });
+
+    it('NEG-03: calling next() after dispose() safely returns { done: true } without trap', () => {
+      const iter = generateFrequencies(100.0, 10);
+      const hid = iter.handleId;
+      expect(hid).toBeGreaterThan(0);
+
+      const first = iter.next();
+      expect(first.done).toBe(false);
+      expect(first.value).toBeCloseTo(100.0, 2);
+
+      // Explicit disposal
+      iter.dispose();
+      expect(iter.handleId).toBe(0);
+
+      // Calling next() after disposal
+      const second = iter.next();
+      expect(second.done).toBe(true);
+      expect(second.value).toBeUndefined();
+
+      // Idempotent double dispose
+      expect(() => iter.dispose()).not.toThrow();
+    });
+
+    it('NEG-05: memory growth detachment guard maintains valid views on memory.grow()', async () => {
+      const { getNimTsModule } = await import('./fixtures/test_module.js');
+      const wasm = getNimTsModule();
+
+      const iter = iterateFibonacci(20);
+      expect(iter.handleId).toBeGreaterThan(0);
+
+      // Read a few values
+      const val1 = iter.next();
+      expect(val1.value).toBe(0);
+      const val2 = iter.next();
+      expect(val2.value).toBe(1);
+
+      // Trigger WebAssembly memory growth (detaches current ArrayBuffer)
+      const prevPages = wasm.memory.grow(2);
+      expect(prevPages).toBeGreaterThan(0);
+
+      // The next step should NOT throw TypeError: detached ArrayBuffer
+      const val3 = iter.next();
+      expect(val3.done).toBe(false);
+      expect(val3.value).toBe(1);
+
+      const val4 = iter.next();
+      expect(val4.done).toBe(false);
+      expect(val4.value).toBe(2);
+
+      iter.dispose();
+      expect(iter.handleId).toBe(0);
     });
   });
 });
