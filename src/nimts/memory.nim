@@ -14,6 +14,8 @@ type
 var
   gLastResultPtr*: pointer = nil
   gLastResultLen*: int32 = 0
+  gLastErrorMsg*: string = ""
+  gHasError*: int32 = 0
 
   gHandleCounter: HandleId = 1
   gHandleTable = initTable[HandleId, HandleEntry]()
@@ -58,6 +60,20 @@ proc allocPrimitiveResult*[T](val: T): uint64 =
   var p = cast[ptr T](alloc0(sizeof(T)))
   p[] = val
   result = packBuffer(p, sizeof(T).int32)
+
+proc setLastError*(msg: string) =
+  gHasError = 1
+  gLastErrorMsg = msg
+
+proc nimts_has_error*(): int32 {.exportc: "nimts_has_error", cdecl.} =
+  gHasError
+
+proc nimts_get_last_error*(): uint64 {.exportc: "nimts_get_last_error", cdecl.} =
+  allocStringResult(gLastErrorMsg)
+
+proc nimts_clear_error*() {.exportc: "nimts_clear_error", cdecl.} =
+  gHasError = 0
+  gLastErrorMsg = ""
 
 proc readString*(p: ptr char, len: int32): string =
   if p == nil or len <= 0: return ""
