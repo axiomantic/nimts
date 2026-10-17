@@ -107,7 +107,7 @@ For all parallel development tracks:
   - *Verification*: `nim c -p:src -d:nimtsCabi` on modules returning channels passes without errors.
   - *Weave*: `vine gate && vine weave && rhizo unlock file:src/nimts/channels.nim` [WOVEN]
 
-- [ ] **Task 4.2: Codegen, TypeScript Projections & Toolchain Hardening** (`nimts-implementer`)
+- [x] **Task 4.2: Codegen, TypeScript Projections & Toolchain Hardening** (`nimts-implementer`)
   - *Strand*: `strand/task-4-2-codegen-toolchain`
   - *Lock*: `rhizo lock file:src/nimts/codegen.nim 600 --fencing`
   - *Provider*: `src/nimts/codegen.nim`, `ts/vite-plugin-nimts.ts`, `scripts/compile_wasm.sh`, `tests/fixtures/test_module.nim`
@@ -119,7 +119,7 @@ For all parallel development tracks:
     - AUD-11: Fix `runtime.wasm` property access in `vite-plugin-nimts.ts`.
     - Live Consumer Wiring: Add real `{.exportts.}` procedure returning `NimTsChannel[string]` and `NimTsChannel[int32]` in `test_module.nim`, recompile WASM fixture.
   - *Verification*: `npx tsc --noEmit` on generated `.d.ts` produces 0 errors.
-  - *Weave*: `vine gate && vine weave && rhizo unlock file:src/nimts/codegen.nim`
+  - *Weave*: `vine gate && vine weave && rhizo unlock file:src/nimts/codegen.nim` [WOVEN]
 
 - [ ] **Task 4.3: Real Adversarial Verification & Green Mirage Purge** (`nimts-auditor`)
   - *Strand*: `strand/task-4-3-green-mirage-purge`
