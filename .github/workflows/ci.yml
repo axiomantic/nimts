@@ -27,7 +27,7 @@ jobs:
           cache: 'npm'
 
       - name: Set up Nim ${{ matrix.nim-version }}
-        uses: nim-lang/setup-nim-action@v1
+        uses: jiro4989/setup-nim-action@v2
         with:
           nim-version: ${{ matrix.nim-version }}
 
