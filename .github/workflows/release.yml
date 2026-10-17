@@ -69,7 +69,14 @@ jobs:
         run: npm pack
 
       - name: Publish to NPM
-        run: npm publish --provenance --access public
+        run: |
+          CURRENT_VERSION=$(node -p "require('./package.json').version")
+          if npm view "@axiomantic/nimts@${CURRENT_VERSION}" version &>/dev/null; then
+            echo "Version ${CURRENT_VERSION} is already published on npm; skipping."
+          else
+            npm publish --provenance --access public
+          fi
+        continue-on-error: true
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN || '' }}
 
