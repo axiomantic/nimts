@@ -92,3 +92,42 @@ For all parallel development tracks:
   - *Verification*: `nimble test && npm test && npm run docs:build && npm pack --dry-run`
   - *Quality Gate*: 100% test pass rate with zero warnings
   - *Weave*: `vine gate && vine weave` [WOVEN]
+
+### Phase 4: Full Adversarial Audit Remediation (Anti-Toy, Anti-Shelfware, Green Mirage Purge)
+- [x] **Task 4.1: C-ABI, Channel Marshaling & Macro Architecture Remediation** (`nimts-architect`)
+  - *Strand*: `strand/task-4-1-cabi-architecture`
+  - *Lock*: `rhizo lock file:src/nimts/channels.nim 600 --fencing`
+  - *Provider*: `src/nimts/channels.nim` and `src/nimts/macros.nim`
+  - *Defects Addressed*:
+    - AUD-01: Fix `macros.nim` `res.HandleId` for `NimTsChannel` by registering channel via `registerHandle(res)`.
+    - AUD-02: Fix `channels.nim` C-ABI signature `nimts_chan_try_recv` to return packed 64-bit uint64 (`ptr | (len << 32)`).
+    - AUD-03: Implement genuine async notification for channels if needed or clean non-blocking polling without phantom `nimts_chan_read`.
+    - Guard `Future` in companion proc with `when declared(Future):` so modules without `std/asyncdispatch` compile cleanly.
+    - AUD-08: Add exception trapping in synchronous companion wrappers to prevent unrecoverable WASM traps.
+  - *Verification*: `nim c -p:src -d:nimtsCabi` on modules returning channels passes without errors.
+  - *Weave*: `vine gate && vine weave && rhizo unlock file:src/nimts/channels.nim` [WOVEN]
+
+- [ ] **Task 4.2: Codegen, TypeScript Projections & Toolchain Hardening** (`nimts-implementer`)
+  - *Strand*: `strand/task-4-2-codegen-toolchain`
+  - *Lock*: `rhizo lock file:src/nimts/codegen.nim 600 --fencing`
+  - *Provider*: `src/nimts/codegen.nim`, `ts/vite-plugin-nimts.ts`, `scripts/compile_wasm.sh`, `tests/fixtures/test_module.nim`
+  - *Defects Addressed*:
+    - AUD-05: Call `mapNimTypeToTs` in `classifyReturnType` for `seq[T]` -> `T[]`, `Option[T]` -> `T | null`.
+    - AUD-06: Add `int64` and `uint64` parameters to `classifyParamType` as BigInt primitive without `JSON.stringify`.
+    - AUD-07: Fix overload emission in TypeScript and JavaScript wrappers.
+    - AUD-10: Remove hardcoded developer path in `compile_wasm.sh`.
+    - AUD-11: Fix `runtime.wasm` property access in `vite-plugin-nimts.ts`.
+    - Live Consumer Wiring: Add real `{.exportts.}` procedure returning `NimTsChannel[string]` and `NimTsChannel[int32]` in `test_module.nim`, recompile WASM fixture.
+  - *Verification*: `npx tsc --noEmit` on generated `.d.ts` produces 0 errors.
+  - *Weave*: `vine gate && vine weave && rhizo unlock file:src/nimts/codegen.nim`
+
+- [ ] **Task 4.3: Real Adversarial Verification & Green Mirage Purge** (`nimts-auditor`)
+  - *Strand*: `strand/task-4-3-green-mirage-purge`
+  - *Provider*: `tests/test_negative_controls.test.ts`, `tests/test_wasm_sync_and_async.test.ts`
+  - *Defects Addressed*:
+    - AUD-04: Purge `BoundedRingBuffer` in-memory mock class in `test_negative_controls.test.ts`. Replace with live `NimTsChannel` imported from compiled WASM fixture.
+    - Verify channel capacity saturation, `for await..of` iteration, early loop break, and `.send()` against real WASM.
+    - Purge `Object.keys` tautology in `NEG-04`, replace with genuine duplicate proc name conflict test.
+    - Add automated `tsc --noEmit` check in Vitest suite to guarantee all generated `.d.ts` files are valid TypeScript.
+  - *Verification*: `nimble test && npm test && npm run docs:build && npm pack --dry-run` all pass 100% green with zero warnings.
+  - *Weave*: `vine gate && vine weave`
