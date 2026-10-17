@@ -158,6 +158,7 @@ done
 
 echo "==> [Backend: Standalone] 4. Linking standalone ${OUTPUT_WASM} via wasm-ld..."
 "${WASM_LD_BIN}" --no-entry --export-all --allow-undefined --lto-O3 \
+  --export=NimMain --export=nimts_init \
   -L"${WASI_SYSROOT}/lib/wasm32-wasip1" -lc -lwasi-emulated-mman -lwasi-emulated-signal \
   -o "${OUTPUT_WASM}" \
   "${NIMCACHE_DIR}"/*.o
