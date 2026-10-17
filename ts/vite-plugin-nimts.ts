@@ -220,6 +220,8 @@ export function nimtsPlugin(options: NimTsPluginOptions = {}): Plugin {
             '--export-all',
             '--allow-undefined',
             '--lto-O3',
+            '--initial-memory=16777216',
+            '--max-memory=2147483648',
             '--export=NimMain',
             '--export=nimts_init',
             `-L${sysroot}/lib/wasm32-wasip1`,
