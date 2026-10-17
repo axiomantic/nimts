@@ -50,8 +50,8 @@ jobs:
           wget -q https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-${WASI_VERSION}/wasi-sysroot-${WASI_VERSION_FULL}.tar.gz
           sudo tar -xzf wasi-sysroot-${WASI_VERSION_FULL}.tar.gz -C /usr/share/
           echo "WASI_SYSROOT=/usr/share/wasi-sysroot" >> $GITHUB_ENV
-          echo "CLANG_BIN=clang" >> $GITHUB_ENV
-          echo "WASM_LD_BIN=wasm-ld" >> $GITHUB_ENV
+          echo "CLANG_BIN=$(command -v clang)" >> $GITHUB_ENV
+          echo "WASM_LD_BIN=$(command -v wasm-ld)" >> $GITHUB_ENV
 
       - name: Install Node dependencies
         run: npm ci

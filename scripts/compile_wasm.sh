@@ -60,6 +60,8 @@ if [[ "${BACKEND}" == "emscripten" ]]; then
     else
       EMCC_BIN="$(command -v emcc || echo "")"
     fi
+  else
+    EMCC_BIN="$(command -v "${EMCC_BIN}" || echo "${EMCC_BIN}")"
   fi
 
   if [[ -z "${EMCC_BIN}" || ! -x "${EMCC_BIN}" ]]; then
@@ -108,6 +110,8 @@ if [[ -z "${CLANG_BIN:-}" ]]; then
   else
     CLANG_BIN="$(command -v clang || echo "")"
   fi
+else
+  CLANG_BIN="$(command -v "${CLANG_BIN}" || echo "${CLANG_BIN}")"
 fi
 
 if [[ -z "${WASM_LD_BIN:-}" ]]; then
@@ -116,6 +120,8 @@ if [[ -z "${WASM_LD_BIN:-}" ]]; then
   else
     WASM_LD_BIN="$(command -v wasm-ld || echo "")"
   fi
+else
+  WASM_LD_BIN="$(command -v "${WASM_LD_BIN}" || echo "${WASM_LD_BIN}")"
 fi
 
 if [[ -z "${WASI_SYSROOT:-}" ]]; then
