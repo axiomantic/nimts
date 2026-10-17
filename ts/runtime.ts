@@ -11,6 +11,8 @@ export interface NimTsExports {
   nimts_free(ptr: number): void;
   nimts_get_last_result_ptr(): number;
   nimts_get_last_result_len(): number;
+  nimts_destroy_handle?(handleId: number): void;
+  nimts_active_handle_count?(): number;
   nimts_resume_future?(futureId: number, dataPtr: number, dataLen: number, isError: number): void;
   [key: string]: any;
 }
@@ -57,6 +59,19 @@ export class NimTsRuntime {
     if (this.exports && ptr) {
       this.exports.nimts_free(ptr);
     }
+  }
+
+  public destroyHandle(handleId: number): void {
+    if (this.exports && this.exports.nimts_destroy_handle && handleId > 0) {
+      this.exports.nimts_destroy_handle(handleId);
+    }
+  }
+
+  public getActiveHandleCount(): number {
+    if (this.exports && typeof this.exports.nimts_active_handle_count === 'function') {
+      return this.exports.nimts_active_handle_count();
+    }
+    return 0;
   }
 
   public createImportObject(): WebAssembly.Imports {

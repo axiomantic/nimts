@@ -106,3 +106,6 @@ proc nimts_destroy_handle*(h: HandleId) {.exportc: "nimts_destroy_handle", cdecl
 
 proc activeHandleCount*(): int =
   gHandleTable.len
+
+proc nimts_active_handle_count*(): int32 {.exportc: "nimts_active_handle_count", cdecl.} =
+  gHandleTable.len.int32

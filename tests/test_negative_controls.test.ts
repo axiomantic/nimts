@@ -21,6 +21,9 @@ describe('Adversarial Negative Control Suites (NEG-01 to NEG-05)', () => {
 
   describe('NEG-01: Channel Early-Break Memory Reclamation', () => {
     it('ensures explicit disposal reclaims handles during aborted iteration', () => {
+      const wasm = getNimTsModule();
+      const initialCount = typeof wasm.nimts_active_handle_count === 'function' ? wasm.nimts_active_handle_count() : 0;
+
       // Simulate creating 5 streamed resource handles
       const streamHandles = [
         createEngine(44100.0),
@@ -32,6 +35,10 @@ describe('Adversarial Negative Control Suites (NEG-01 to NEG-05)', () => {
 
       for (const h of streamHandles) {
         expect(h.handleId).toBeGreaterThan(0);
+      }
+
+      if (typeof wasm.nimts_active_handle_count === 'function') {
+        expect(wasm.nimts_active_handle_count()).toBe(initialCount + 5);
       }
 
       // Simulate consumer breaking on item index 2 (early break)
@@ -47,6 +54,10 @@ describe('Adversarial Negative Control Suites (NEG-01 to NEG-05)', () => {
       for (const h of streamHandles) {
         h.dispose();
         expect(h.handleId).toBe(0);
+      }
+
+      if (typeof wasm.nimts_active_handle_count === 'function') {
+        expect(wasm.nimts_active_handle_count()).toBe(initialCount);
       }
     });
   });
