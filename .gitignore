@@ -22,5 +22,7 @@ docs/.vitepress/cache/
 # Vite public output
 public/
 
-
-
+# Vine workspaces
+.vine/
+.vine.json
+.envrc
