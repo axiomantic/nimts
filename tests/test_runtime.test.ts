@@ -121,5 +121,31 @@ describe('NimTsRuntime Unit Tests', () => {
       expect(() => exports.NimMain()).not.toThrow();
       expect(() => exports.nimts_init()).not.toThrow();
     });
+
+    it('synchronously initializes from WebAssembly.Module via initSync', async () => {
+      const runtime = new NimTsRuntime();
+      const module = await WebAssembly.compile(wasmBytes as any);
+      const exports = runtime.initSync({ wasmModule: module });
+      expect(exports).toBeDefined();
+      expect(exports.memory).toBeInstanceOf(WebAssembly.Memory);
+      expect(typeof exports.nimts_alloc).toBe('function');
+
+      // Test passString and readString on synchronously initialized runtime
+      const testStr = 'AudioWorklet Synchronous DSP 🎛️';
+      const { ptr, len } = runtime.passString(testStr);
+      expect(ptr).toBeGreaterThan(0);
+      expect(runtime.readString(ptr, len)).toBe(testStr);
+      runtime.free(ptr);
+    });
+
+    it('synchronously initializes via fixture initNimTsSync', async () => {
+      const { initNimTsSync, addNumbers, greet } = await import('./fixtures/test_module.js');
+      const module = await WebAssembly.compile(wasmBytes as any);
+      const exports = initNimTsSync({ wasmModule: module });
+      expect(exports).toBeDefined();
+
+      expect(addNumbers(40, 2)).toBe(42);
+      expect(greet('AudioWorklet')).toBe('Hello, AudioWorklet!');
+    });
   });
 });
