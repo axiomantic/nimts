@@ -143,7 +143,7 @@ For all parallel development tracks:
   - *Verification*: Procs using dynamic method dispatch (`chckNilDisp`) initialize and execute cleanly without WASM traps.
   - *Weave*: `vine gate && vine weave` [WOVEN]
 
-- [ ] **Task 5.2: AudioWorklet TextEncoder/Decoder Fallback & Synchronous Loader** (`nimts-implementer`)
+- [x] **Task 5.2: AudioWorklet TextEncoder/Decoder Fallback & Synchronous Loader** (`nimts-implementer`)
   - *Strand*: `strand/task-5-2-audioworklet-hardening`
   - *Provider*: `src/nimts/codegen.nim`, `ts/runtime.ts`, `docs/guide/audioworklet-workers.md`
   - *Defects Addressed*:
@@ -151,10 +151,10 @@ For all parallel development tracks:
     - Implement `initNimTsSync(options?: NimTsOptions)` using synchronous `new WebAssembly.Instance(module, imports)` when a pre-compiled `wasmModule` or `wasmInstance` is provided for AudioWorklet constructors.
     - Update `docs/guide/audioworklet-workers.md` to document synchronous `initNimTsSync` pattern.
   - *Verification*: Vitest suite verifies operation with `globalThis.TextDecoder = undefined` and synchronous constructor loading.
-  - *Weave*: `vine gate && vine weave`
+  - *Weave*: `vine gate && vine weave` [WOVEN]
 
-- [ ] **Task 5.3: End-to-End AudioWorklet Verification & Two-Key Gate** (`nimts-architect`)
+- [x] **Task 5.3: End-to-End AudioWorklet Verification & Two-Key Gate** (`nimts-architect`)
   - *Strand*: `strand/task-5-3-audioworklet-tests`
   - *Provider*: `tests/test_audioworklet.test.ts`, `tests/test_wasm_sync_and_async.test.ts`
   - *Verification*: Full Vitest and Nimble suites pass, docs build passes, npm pack dry-run clean.
-  - *Weave*: `vine gate && vine weave`
+  - *Weave*: `vine gate && vine weave` [WOVEN]
