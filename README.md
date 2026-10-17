@@ -38,6 +38,9 @@ nimble install nimts
 npm install nimts
 ```
 
+> **Note**: For full-stack applications (e.g. Vite + React/Vue with `.nim` source files), install **both**: Nimble provides the compiler tools & macros, while npm provides the Vite plugin (`nimts/vite`) and runtime (`nimts/runtime`).
+
+
 ---
 
 ## Quickstart (3 Minutes)
