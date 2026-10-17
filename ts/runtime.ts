@@ -110,7 +110,31 @@ export class NimTsRuntime {
           }
         }
       },
-      wasi_snapshot_preview1: new Proxy({}, { get: () => () => 0 })
+      wasi_snapshot_preview1: new Proxy({}, {
+        get: (_target, prop) => {
+          if (prop === 'fd_prestat_get') return () => 8;
+          if (prop === 'fd_write') {
+            return (_fd: number, iovs: number, iovs_len: number, nwritten: number) => {
+              const mem = (this.instance?.exports?.memory || (this.exports as any)?.memory) as WebAssembly.Memory | undefined;
+              if (mem && mem.buffer) {
+                const view = new DataView(mem.buffer);
+                let total = 0;
+                for (let i = 0; i < iovs_len; i++) {
+                  total += view.getUint32(iovs + i * 8 + 4, true);
+                }
+                view.setUint32(nwritten, total, true);
+              }
+              return 0;
+            };
+          }
+          if (prop === 'proc_exit') {
+            return (code: number) => {
+              if (code !== 0) console.error('[WASI proc_exit]:', code);
+            };
+          }
+          return () => 0;
+        }
+      })
     };
   }
 
