@@ -11,6 +11,17 @@ var
   gExportedProcs {.compileTime.}: seq[TsProc] = @[]
   gExportedTypes {.compileTime.}: seq[TsType] = @[]
   gProcCounts {.compileTime.}: Table[string, int] = initTable[string, int]()
+  gModuleName {.compileTime.}: string = ""
+
+proc setNimTsModule*(name: string) {.compileTime.} =
+  gModuleName = name
+
+proc getNimTsModule*(): string {.compileTime.} =
+  gModuleName
+
+macro setModule*(name: static[string]): untyped =
+  gModuleName = name
+  result = newEmptyNode()
 
 type
   ParamKind = enum
@@ -125,25 +136,43 @@ proc processExportTs*(body: NimNode): NimNode =
   if body.kind == nnkProcDef:
     var procDef = body
     let (procNameStr, baseIdent) = cleanName(procDef[0])
-    var cabiNameStr = "nimts_" & procNameStr
-    if gProcCounts.hasKey(procNameStr):
-      let count = gProcCounts[procNameStr] + 1
-      gProcCounts[procNameStr] = count
-      cabiNameStr = "nimts_" & procNameStr & "_" & $count
+
+    var modName = gModuleName
+    if procDef[4].kind == nnkPragma:
+      for p in procDef[4]:
+        if p.kind == nnkExprColonExpr and p.len > 1:
+          let key = if p[0].kind == nnkIdent: p[0].strVal else: ""
+          if key.toLowerAscii == "module":
+            modName = if p[1].kind == nnkStrLit: p[1].strVal else: p[1].repr.strip(chars = {'"'})
+        elif p.kind == nnkCall and p.len > 1:
+          let key = if p[0].kind == nnkIdent: p[0].strVal else: ""
+          if key.toLowerAscii in ["exportts", "export_ts"]:
+            for k in 1 ..< p.len:
+              if p[k].kind == nnkExprColonExpr and p[k][0].strVal == "module":
+                modName = if p[k][1].kind == nnkStrLit: p[k][1].strVal else: p[k][1].repr.strip(chars = {'"'})
+              elif p[k].kind == nnkStrLit:
+                modName = p[k].strVal
+
+    let cabiBase = if modName.len > 0: "nimts_" & modName & "_" & procNameStr else: "nimts_" & procNameStr
+    var cabiNameStr = cabiBase
+    let countKey = if modName.len > 0: modName & "_" & procNameStr else: procNameStr
+    if gProcCounts.hasKey(countKey):
+      let count = gProcCounts[countKey] + 1
+      gProcCounts[countKey] = count
+      cabiNameStr = cabiBase & "_" & $count
     else:
-      gProcCounts[procNameStr] = 0
+      gProcCounts[countKey] = 0
     let cabiIdent = ident(cabiNameStr)
 
     # 1. Clean pragmas on the original proc (remove exportts pragma)
     var newPragmas = newNimNode(nnkPragma)
     if procDef[4].kind == nnkPragma:
       for p in procDef[4]:
-        let pName = if p.kind == nnkIdent: p.strVal elif p.kind == nnkExprColonExpr and p.len > 0: p[0].strVal else: ""
-        if pName.toLowerAscii != "exportts":
-          newPragmas.add(p)
-        if p.kind == nnkIdent and (p.strVal == "exportts" or p.strVal == "exportTs"):
-          discard
-        elif p.kind == nnkExprColonExpr and (p[0].strVal == "exportts" or p[0].strVal == "exportTs"):
+        let pName = if p.kind == nnkIdent: p.strVal
+                    elif p.kind == nnkExprColonExpr and p.len > 0: p[0].strVal
+                    elif p.kind == nnkCall and p.len > 0: p[0].strVal
+                    else: ""
+        if pName.toLowerAscii in ["exportts", "export_ts", "module"]:
           discard
         else:
           newPragmas.add(p)
@@ -299,18 +328,37 @@ else:
   else:
     result.add(body)
 
-macro exportTs*(target: untyped): untyped =
-  if target.kind in [nnkProcDef, nnkTypeSection, nnkTypeDef, nnkStmtList]:
-    result = processExportTs(target)
-  else:
-    let (nameStr, _) = cleanName(target)
-    # Check if target is a known type or proc
-    result = parseStmt("""
+macro exportTs*(args: varargs[untyped]): untyped =
+  if args.len == 0:
+    return newEmptyNode()
+  if args.len == 1:
+    let target = args[0]
+    if target.kind in [nnkProcDef, nnkTypeSection, nnkTypeDef, nnkStmtList]:
+      result = processExportTs(target)
+    else:
+      let (nameStr, _) = cleanName(target)
+      # Check if target is a known type or proc
+      result = parseStmt("""
 when declared(""" & nameStr & """):
   when """ & nameStr & """ is typedesc:
     static:
       gExportedTypes.add(TsType(name: """" & nameStr & """", isHandle: """ & nameStr & """ is ref object, fields: @[]))
 """)
+  else:
+    let target = args[^1]
+    var specifiedMod = ""
+    for k in 0 ..< args.len - 1:
+      let a = args[k]
+      if (a.kind in [nnkExprColonExpr, nnkExprEqExpr]) and a.len > 1:
+        if a[0].strVal == "module":
+          specifiedMod = if a[1].kind == nnkStrLit: a[1].strVal else: a[1].repr.strip(chars = {'"'})
+      elif a.kind == nnkStrLit:
+        specifiedMod = a.strVal
+    let prevMod = gModuleName
+    if specifiedMod.len > 0:
+      gModuleName = specifiedMod
+    result = processExportTs(target)
+    gModuleName = prevMod
 
 macro importts*(body: untyped): untyped =
   # proc jsFetch*(url: cstring): Future[seq[byte]] {.importts.}
@@ -360,8 +408,10 @@ macro emitTsGlueFiles*(moduleName: static[string], outputDir: static[string] = "
 
 proc getExportedProcsCount*(): int {.compileTime.} = gExportedProcs.len
 proc getExportedTypesCount*(): int {.compileTime.} = gExportedTypes.len
+proc getExportedProcs*(): seq[TsProc] {.compileTime.} = gExportedProcs
 proc resetExportedRegistrations*() {.compileTime.} =
   gExportedProcs = @[]
   gExportedTypes = @[]
   gProcCounts.clear()
+  gModuleName = ""
 
