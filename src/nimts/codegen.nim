@@ -717,7 +717,45 @@ proc generateJs*(meta: TsModuleMeta, relativeWasmPath: string = ""): string =
   lines.add("        }")
   lines.add("      }")
   lines.add("    },")
-  lines.add("    wasi_snapshot_preview1: new Proxy({}, { get: () => () => 0 }),")
+  lines.add("""    wasi_snapshot_preview1: new Proxy({}, {
+      get: (_target, prop) => {
+        if (prop === 'fd_prestat_get') return () => 8;
+        if (prop === 'environ_sizes_get' || prop === 'args_sizes_get') {
+          return (count_ptr, buf_size_ptr) => {
+            const mem = instance?.exports?.memory || _memory;
+            if (mem && mem.buffer) {
+              const view = new DataView(mem.buffer);
+              view.setUint32(count_ptr, 0, true);
+              view.setUint32(buf_size_ptr, 0, true);
+            }
+            return 0;
+          };
+        }
+        if (prop === 'fd_fdstat_get') {
+          return (fd, stat) => {
+            const mem = instance?.exports?.memory || _memory;
+            if (mem && mem.buffer) {
+              const view = new DataView(mem.buffer);
+              view.setUint8(stat, 2);
+            }
+            return 0;
+          };
+        }
+        if (prop === 'fd_write') {
+          return (_fd, iovs, iovs_len, nwritten) => {
+            const mem = instance?.exports?.memory || _memory;
+            if (mem && mem.buffer) {
+              const view = new DataView(mem.buffer);
+              let total = 0;
+              for (let i = 0; i < iovs_len; i++) total += view.getUint32(iovs + i * 8 + 4, true);
+              view.setUint32(nwritten, total, true);
+            }
+            return 0;
+          };
+        }
+        return () => 0;
+      }
+    }),""")
   lines.add("    ...(options.imports || {})")
   lines.add("  };")
   lines.add("")
