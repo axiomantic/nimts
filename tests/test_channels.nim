@@ -96,19 +96,19 @@ suite "NimTsChannel SPSC Ring Buffer Verification":
     let sendRes = nimts_chan_send(chanId, cast[pointer](msg.cstring), msg.len.int32)
     check sendRes == 1
 
-    var outPtr: pointer = nil
-    var outLen: int32 = 0
-    let recvRes = nimts_chan_try_recv(chanId, addr outPtr, addr outLen)
-    check recvRes == 1
-    check outPtr != nil
-    check outLen == msg.len.int32
+    let packed = nimts_chan_try_recv(chanId)
+    check packed != 0'u64
+    let ptrVal = gLastResultPtr
+    let lenVal = gLastResultLen
+    check ptrVal != nil
+    check lenVal == msg.len.int32
 
-    let receivedStr = readString(cast[ptr char](outPtr), outLen)
+    let receivedStr = readString(cast[ptr char](ptrVal), lenVal)
     check receivedStr == msg
-    nimts_free(outPtr)
+    nimts_free(ptrVal)
 
     # Empty queue returns 0
-    check nimts_chan_try_recv(chanId, addr outPtr, addr outLen) == 0
+    check nimts_chan_try_recv(chanId) == 0'u64
 
     # Core namespaced C-ABI aliases
     let coreSendRes = nimts_core_chan_send(chanId, cast[pointer](msg.cstring), msg.len.int32)

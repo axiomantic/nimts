@@ -41,6 +41,13 @@ proc cleanName(node: NimNode): (string, NimNode) =
   else:
     (node.repr, node)
 
+proc replacePlaceholder(n: NimNode, replacement: NimNode): NimNode =
+  result = copyNimNode(n)
+  if n.kind == nnkCall and n.len > 0 and n[0].kind == nnkIdent and n[0].strVal == "placeholderCall":
+    return replacement.copyNimTree()
+  for child in n:
+    result.add(replacePlaceholder(child, replacement))
+
 proc classifyParamType(typeNode: NimNode): (ParamKind, string, string) =
   let typeRepr = typeNode.repr.strip
   case typeRepr
@@ -259,30 +266,75 @@ proc processExportTs*(body: NimNode): NimNode =
       callExpr.add(arg)
 
     if retNimType == "void":
-      companionBody.add(callExpr)
-    else:
-      let invokeStmt = newLetStmt(ident("res"), callExpr)
-      companionBody.add(invokeStmt)
-
-      let retBranch = parseStmt("""
-when typeof(res) is (SomeInteger or SomeFloat or bool or char):
-  return res
-elif typeof(res) is string:
-  return allocStringResult(res)
-elif typeof(res) is (seq[byte] or seq[uint8]):
-  return allocBytesResult(res)
-elif typeof(res) is Future:
-  return bridgeFutureToPromise(res)
-elif typeof(res) is NimTsIterator:
-  return res.HandleId
-elif typeof(res) is NimTsChannel:
-  return registerHandle(res)
-elif typeof(res) is ref object:
-  return registerHandle(res)
-else:
-  return allocStringResult($(%*(res)))
+      var tryBlock = parseStmt("""
+try:
+  placeholderCall()
+except CatchableError as e:
+  setLastError(e.msg)
+except Defect as e:
+  setLastError(e.msg)
 """)
-      companionBody.add(retBranch)
+      companionBody.add(replacePlaceholder(tryBlock, callExpr))
+    else:
+      var tryBlock = parseStmt("""
+try:
+  let res = placeholderCall()
+  when typeof(res) is (SomeInteger or SomeFloat or bool or char):
+    return res
+  elif typeof(res) is string:
+    return allocStringResult(res)
+  elif typeof(res) is (seq[byte] or seq[uint8]):
+    return allocBytesResult(res)
+  elif (when declared(Future): typeof(res) is Future else: false):
+    return bridgeFutureToPromise(res)
+  elif (when declared(NimTsIterator): typeof(res) is NimTsIterator else: false):
+    return res.HandleId
+  elif (when declared(NimTsChannel): typeof(res) is NimTsChannel else: false):
+    return registerHandle(res)
+  elif typeof(res) is ref object:
+    return registerHandle(res)
+  else:
+    return allocStringResult($(%*(res)))
+except CatchableError as e:
+  setLastError(e.msg)
+  type RetType = typeof(placeholderCall())
+  when RetType is (SomeInteger or SomeFloat or bool or char):
+    return default(RetType)
+  elif RetType is string:
+    return 0'u64
+  elif RetType is (seq[byte] or seq[uint8]):
+    return 0'u64
+  elif (when declared(Future): RetType is Future else: false):
+    return 0'i32
+  elif (when declared(NimTsIterator): RetType is NimTsIterator else: false):
+    return 0'i32
+  elif (when declared(NimTsChannel): RetType is NimTsChannel else: false):
+    return 0'i32
+  elif RetType is ref object:
+    return 0'i32
+  else:
+    return 0'u64
+except Defect as e:
+  setLastError(e.msg)
+  type RetType = typeof(placeholderCall())
+  when RetType is (SomeInteger or SomeFloat or bool or char):
+    return default(RetType)
+  elif RetType is string:
+    return 0'u64
+  elif RetType is (seq[byte] or seq[uint8]):
+    return 0'u64
+  elif (when declared(Future): RetType is Future else: false):
+    return 0'i32
+  elif (when declared(NimTsIterator): RetType is NimTsIterator else: false):
+    return 0'i32
+  elif (when declared(NimTsChannel): RetType is NimTsChannel else: false):
+    return 0'i32
+  elif RetType is ref object:
+    return 0'i32
+  else:
+    return 0'u64
+""")
+      companionBody.add(replacePlaceholder(tryBlock, callExpr))
 
     # 4. Construct companion proc definition
     var companionPragmas = newNimNode(nnkPragma)

@@ -159,23 +159,13 @@ proc nimts_chan_send*(chanId: int32, dataPtr: pointer, dataLen: int32): int32 {.
     return 1
   return 0 # full
 
-proc nimts_chan_try_recv*(chanId: int32, outPtr: ptr pointer, outLen: ptr int32): int32 {.exportc: "nimts_chan_try_recv", cdecl.} =
-  if not gRawChannels.hasKey(chanId): return -1
+proc nimts_chan_try_recv*(chanId: int32): uint64 {.exportc: "nimts_chan_try_recv", cdecl.} =
+  if not gRawChannels.hasKey(chanId): return 0'u64
   let chan = gRawChannels[chanId]
   var bytes: seq[byte]
   if chan.tryRecv(bytes):
-    if bytes.len > 0:
-      let p = nimts_alloc(bytes.len.int32)
-      copyMem(p, addr bytes[0], bytes.len)
-      if outPtr != nil: outPtr[] = p
-      if outLen != nil: outLen[] = bytes.len.int32
-    else:
-      if outPtr != nil: outPtr[] = nil
-      if outLen != nil: outLen[] = 0
-    return 1
-  if chan.isClosed():
-    return -1
-  return 0 # empty
+    return allocBytesResult(bytes)
+  return 0'u64
 
 proc nimts_chan_is_closed*(chanId: int32): int32 {.exportc: "nimts_chan_is_closed", cdecl.} =
   if gRawChannels.hasKey(chanId):
@@ -204,8 +194,8 @@ proc nimts_chan_destroy*(chanId: int32) {.exportc: "nimts_chan_destroy", cdecl.}
 proc nimts_core_chan_send*(chanId: int32, dataPtr: pointer, dataLen: int32): int32 {.exportc: "nimts_core_chan_send", cdecl.} =
   nimts_chan_send(chanId, dataPtr, dataLen)
 
-proc nimts_core_chan_try_recv*(chanId: int32, outPtr: ptr pointer, outLen: ptr int32): int32 {.exportc: "nimts_core_chan_try_recv", cdecl.} =
-  nimts_chan_try_recv(chanId, outPtr, outLen)
+proc nimts_core_chan_try_recv*(chanId: int32): uint64 {.exportc: "nimts_core_chan_try_recv", cdecl.} =
+  nimts_chan_try_recv(chanId)
 
 proc nimts_core_chan_is_closed*(chanId: int32): int32 {.exportc: "nimts_core_chan_is_closed", cdecl.} =
   nimts_chan_is_closed(chanId)
@@ -226,8 +216,8 @@ macro exportModuleChannelCabi*(moduleName: static[string]): untyped =
 proc `""" & sendName & """`*(chanId: int32, dataPtr: pointer, dataLen: int32): int32 {.exportc: """" & sendName & """", cdecl.} =
   nimts_chan_send(chanId, dataPtr, dataLen)
 
-proc `""" & tryRecvName & """`*(chanId: int32, outPtr: ptr pointer, outLen: ptr int32): int32 {.exportc: """" & tryRecvName & """", cdecl.} =
-  nimts_chan_try_recv(chanId, outPtr, outLen)
+proc `""" & tryRecvName & """`*(chanId: int32): uint64 {.exportc: """" & tryRecvName & """", cdecl.} =
+  nimts_chan_try_recv(chanId)
 
 proc `""" & isClosedName & """`*(chanId: int32): int32 {.exportc: """" & isClosedName & """", cdecl.} =
   nimts_chan_is_closed(chanId)

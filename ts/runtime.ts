@@ -132,8 +132,18 @@ export class NimTsRuntime {
       throw new Error('No valid WebAssembly source provided to NimTsRuntime');
     }
 
-    this.instance = new WebAssembly.Instance(module, this.createImportObject());
-    this.exports = this.instance.exports as unknown as NimTsExports;
+    const importObj = this.createImportObject();
+    const instantiated = await WebAssembly.instantiate(module, importObj);
+    const actualInstance = (instantiated instanceof WebAssembly.Instance) ? instantiated : (instantiated as any).instance;
+    this.instance = actualInstance;
+    this.exports = (actualInstance ? actualInstance.exports : null) as unknown as NimTsExports;
+    if (typeof (this.exports as any).NimMain === 'function') {
+      try {
+        (this.exports as any).NimMain();
+      } catch (e) {
+        console.warn('[NimTsRuntime] NimMain error:', e);
+      }
+    }
     return this.exports;
   }
 }

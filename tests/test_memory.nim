@@ -196,3 +196,15 @@ suite "NimTS Memory and Handle Management":
     # NEG-03: calling next after dispose returns 0 without crashing or memory corruption
     let pAfter = nimts_iter_next(hid)
     check pAfter == 0'u64
+
+  test "Last error reporting C-ABI":
+    check nimts_has_error() == 0
+    setLastError("Sample failure")
+    check nimts_has_error() == 1
+    let packed = nimts_get_last_error()
+    check packed != 0'u64
+    let errStr = readString(cast[ptr char](gLastResultPtr), gLastResultLen)
+    check errStr == "Sample failure"
+    nimts_free(gLastResultPtr)
+    nimts_clear_error()
+    check nimts_has_error() == 0
