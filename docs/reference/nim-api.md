@@ -67,6 +67,33 @@ type
 ```
 Monotonic identifiers representing active coroutines in the async bridge.
 
+### `NimTsIterator[T]`
+```nim
+type NimTsIterator*[T] = distinct HandleId
+```
+Distinct type wrapping a `HandleId` for closure iterators. Automatically managed on heap and projected as ES2015 `IterableIterator<T>` in TypeScript.
+
+---
+
+## Channels (`nimts/channels`)
+
+Lock-free circular SPSC queue with cross-platform targets (WASM-native ring buffer and JS event-loop fallback).
+
+### `newNimTsChannel[T](capacity: int = 64): NimTsChannel[T]`
+Creates a new SPSC bounded channel with power-of-two capacity (default: 64).
+
+### `send[T](ch: NimTsChannel[T], item: sink T): bool`
+Pushes an item into the channel buffer. Returns `true` on success, or `false` if the buffer is full or closed.
+
+### `tryRecv[T](ch: NimTsChannel[T], item: var T): bool`
+Attempts to read an item from the channel. Returns `true` if an item was read, `false` if empty.
+
+### `recv[T](ch: NimTsChannel[T]): Future[T]`
+Asynchronously awaits the next available item from the channel.
+
+### `close[T](ch: NimTsChannel[T])`
+Closes the channel, notifying consumers that no further items will be produced.
+
 ---
 
 ## Memory Marshaling (`nimts/memory`)
@@ -86,15 +113,25 @@ Retrieves the typed `ref object` associated with `h`. Returns `nil` if the handl
 ### `releaseHandle(h: HandleId)`
 Removes the handle from the table and calls `GC_unref` on the underlying object.
 
+### `registerClosureIter[T](iter: iterator(): T {.closure.}): HandleId`
+Registers a closure iterator inside a heap-allocated `ClosureIterSlot[T]`, returning a safe `HandleId` callable from C-ABI and WebAssembly.
+
 ---
 
 ## Async Coroutine Bridge (`nimts/async_bridge`)
 
+### `AnyFuture[F]`
+Duck-typed concept that matches any custom future type (Chronos, CPS, std/asyncdispatch) exposing `.finished`, `.failed`, and `.read`.
+
 ### `bridgeFutureToPromise[T](fut: Future[T]): PromiseId`
 Attaches a completion callback to `fut`. When `fut` finishes or fails, notifies JavaScript via `nimts_js_resolve_promise` or `nimts_js_reject_promise`.
+
+### `bridgeAnyFutureToPromise[F](fut: F): PromiseId`
+Adapts any future conforming to `AnyFuture` into a JavaScript Promise.
 
 ### `registerPendingFuture[T](fid: FutureId, fut: Future[T])`
 Registers a pending `Future[T]` waiting for JavaScript resumption via `nimts_resume_future`.
 
 ### `nimts_resume_future(futureId: int32, dataPtr: pointer, dataLen: int32, isError: int32)`
 Called by JavaScript to settle a pending Nim Future. If `isError != 0`, fails the Future with a `NimTsError`.
+

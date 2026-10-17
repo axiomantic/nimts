@@ -74,3 +74,45 @@ await runtime.init(wasmSource);
 - **`readBytes(ptr: number, len: number): Uint8Array`**: Creates a copy of a byte slice from WebAssembly linear memory.
 - **`free(ptr: number): void`**: Frees allocated memory in WASM.
 - **`createImportObject(): WebAssembly.Imports`**: Creates the standard WebAssembly imports object providing promise callbacks and the WASI preview1 proxy.
+
+---
+
+## Projections & Streaming Classes
+
+### `NimTsIterator<T>`
+Wraps an active Nim closure iterator in WebAssembly linear memory and implements the ES2015 `IterableIterator<T>` protocol.
+
+```typescript
+const iter = exports.countUp(1, 10);
+
+// Use in standard for..of loops
+for (const n of iter) {
+  console.log(n);
+  if (n === 5) break; // Automatically triggers .return() and reclaims WASM memory
+}
+
+// Or spread into an array
+const arr = [...exports.countUp(1, 5)];
+```
+
+- **`next(): IteratorResult<T>`**: Retrieves the next element from the iterator.
+- **`return(): IteratorResult<T>`**: Deterministically disposes the iterator slot in WASM and frees heap handles upon early loop termination.
+- **`[Symbol.iterator]()`**: Enables native JavaScript iteration.
+
+### `NimTsChannel<T>`
+Wraps an asynchronous SPSC wait-free bounded channel and implements the ES2018 `AsyncIterable<T>` protocol.
+
+```typescript
+const channel = exports.createEventStream();
+
+// Consume asynchronously
+for await (const event of channel) {
+  processEvent(event);
+}
+```
+
+- **`send(item: T): boolean`**: Sends an item into the channel buffer.
+- **`recv(): Promise<T | null>`**: Awaits the next item from the channel.
+- **`close(): void`**: Closes the channel.
+- **`[Symbol.asyncIterator]()`**: Enables native JavaScript `for await..of` iteration.
+

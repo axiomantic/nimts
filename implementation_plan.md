@@ -38,21 +38,21 @@ For all parallel development tracks:
 ## 4. Phase-by-Phase Task Checklist
 
 ### Phase 1: Core Engine Primitives
-- [ ] **Task 1.1: `NimTsChannel[T]` & Lockfree SPSC Topology** (`nimts-architect`)
+- [x] **Task 1.1: `NimTsChannel[T]` & Lockfree SPSC Topology** (`nimts-architect`)
   - *Strand*: `strand/channels-spsc`
   - *Lock*: `rhizo lock file:src/nimts/channels.nim 600 --fencing`
   - *Provider*: `src/nimts/channels.nim` (wait-free SPSC circular queue with WASM/JS target split)
   - *Consumer / Call-Site*: Wire into `src/nimts.nim` exports and channel C-ABI
   - *Verification*: `nimble test` passes channel unit tests
-  - *Weave*: `vine gate && vine weave && rhizo unlock file:src/nimts/channels.nim`
+  - *Weave*: `vine gate && vine weave && rhizo unlock file:src/nimts/channels.nim` [WOVEN]
 
-- [ ] **Task 1.2: Multi-Module Linker Namespacing & Universal Future Adapter** (`nimts-architect`)
+- [x] **Task 1.2: Multi-Module Linker Namespacing & Universal Future Adapter** (`nimts-architect`)
   - *Strand*: `strand/namespacing-async`
   - *Lock*: `rhizo lock file:src/nimts/macros.nim 600 --fencing`
   - *Provider*: `src/nimts/macros.nim` (`nimts_<module>_<proc>` C-ABI) and `src/nimts/async_bridge.nim` (`AnyFuture[F, T]` duck-typing)
   - *Consumer / Call-Site*: Wire into `classifyReturnType` and `processExportTs`
   - *Verification*: `test_codegen.nim` and `wasm-ld` multi-module link test passes
-  - *Weave*: `vine gate && vine weave && rhizo unlock file:src/nimts/macros.nim`
+  - *Weave*: `vine gate && vine weave && rhizo unlock file:src/nimts/macros.nim` [WOVEN]
 
 - [x] **Task 1.3: Closure Iterator Handles & C-ABI Control Surface** (`nimts-implementer`)
   - *Strand*: `strand/closure-iterators`
@@ -60,7 +60,7 @@ For all parallel development tracks:
   - *Provider*: `src/nimts/types.nim` and `src/nimts/memory.nim` (`ClosureIterSlot[T]`, `nimts_iter_next`, `nimts_iter_dispose`)
   - *Consumer / Call-Site*: Wire into `macros.nim` return type classification
   - *Verification*: `test_memory.nim` verifies slot allocation, invocation, and deterministic teardown
-  - *Weave*: `vine gate && vine weave && rhizo unlock file:src/nimts/types.nim`
+  - *Weave*: `vine gate && vine weave && rhizo unlock file:src/nimts/types.nim` [WOVEN]
 
 ### Phase 2: Codegen & TypeScript Projections
 - [x] **Task 2.1: `AsyncIterable<T>` & `IterableIterator<T>` TypeScript Codegen** (`nimts-implementer`)
@@ -69,7 +69,7 @@ For all parallel development tracks:
   - *Provider*: `src/nimts/codegen.nim` (generate `NimTsChannel<T>` and `NimTsIterator<T>` classes)
   - *Consumer / Call-Site*: Emits `.d.ts` and `.js` wrappers for channel and iterator procs
   - *Verification*: `test_codegen.nim` validates generated code structure and ES2015 protocol conformance
-  - *Weave*: `vine gate && vine weave && rhizo unlock file:src/nimts/codegen.nim`
+  - *Weave*: `vine gate && vine weave && rhizo unlock file:src/nimts/codegen.nim` [WOVEN]
 
 - [x] **Task 2.2: Memory Growth Detachment Guards & Return Disposal** (`nimts-implementer`)
   - *Strand*: `strand/codegen-guards`
@@ -77,7 +77,7 @@ For all parallel development tracks:
   - *Provider*: `src/nimts/codegen.nim` (dynamic `_memory.buffer` access, early `.return()` hooks)
   - *Consumer / Call-Site*: Wire into channel/iterator class bodies
   - *Verification*: `npm test` passes
-  - *Weave*: `vine gate && vine weave && rhizo unlock file:src/nimts/codegen.nim`
+  - *Weave*: `vine gate && vine weave && rhizo unlock file:src/nimts/codegen.nim` [WOVEN]
 
 ### Phase 3: Negative Controls & Consumer Integration
 - [x] **Task 3.1: Adversarial Test Matrix (NEG-01 to NEG-05)** (`nimts-auditor`)
@@ -87,8 +87,8 @@ For all parallel development tracks:
   - *Verification*: All negative controls catch failures when injected and pass when guarded (Two-Key Gate passed, 40 Vitest + 7 Nimble suites)
   - *Weave*: `vine gate && vine weave` [WOVEN]
 
-- [ ] **Task 3.2: Full End-to-End Vitest & Nimble Verification** (`nimts-auditor`)
+- [x] **Task 3.2: Full End-to-End Vitest & Nimble Verification** (`nimts-auditor`)
   - *Strand*: `strand/full-e2e`
   - *Verification*: `nimble test && npm test && npm run docs:build && npm pack --dry-run`
   - *Quality Gate*: 100% test pass rate with zero warnings
-  - *Weave*: `vine gate && vine weave`
+  - *Weave*: `vine gate && vine weave` [WOVEN]

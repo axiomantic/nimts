@@ -8,7 +8,6 @@ type
 
   NimTsHandle*[T] = distinct HandleId
   NimTsIterator*[T] = distinct HandleId
-  NimTsChannel*[T] = distinct HandleId
 
   ClosureIterSlotBase* = ref object of RootObj
     finished*: bool
@@ -29,9 +28,6 @@ proc `$`*[T](h: NimTsHandle[T]): string = "NimTsHandle[" & $typeof(T) & "](" & $
 
 proc `==`*[T](a, b: NimTsIterator[T]): bool = a.HandleId == b.HandleId
 proc `$`*[T](it: NimTsIterator[T]): string = "NimTsIterator[" & $typeof(T) & "](" & $it.HandleId & ")"
-
-proc `==`*[T](a, b: NimTsChannel[T]): bool = a.HandleId == b.HandleId
-proc `$`*[T](ch: NimTsChannel[T]): string = "NimTsChannel[" & $typeof(T) & "](" & $ch.HandleId & ")"
 
 const
   InvalidHandleId*: HandleId = 0
