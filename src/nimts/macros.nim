@@ -290,7 +290,7 @@ try:
   elif (when declared(NimTsIterator): typeof(res) is NimTsIterator else: false):
     return res.HandleId
   elif (when declared(NimTsChannel): typeof(res) is NimTsChannel else: false):
-    return registerHandle(res)
+    return registerChannel(res)
   elif typeof(res) is ref object:
     return registerHandle(res)
   else:
@@ -368,15 +368,47 @@ except Defect as e:
       typeName = nameStr
 
     let isRef = typeDef[2].kind == nnkRefTy or typeDef[2].repr.contains("ref object")
-    gExportedTypes.add(TsType(name: typeName, isHandle: isRef, fields: @[]))
+    var fields: seq[TsTypeField] = @[]
+    var objNode = typeDef[2]
+    if objNode.kind == nnkRefTy and objNode.len > 0:
+      objNode = objNode[0]
+    if objNode.kind == nnkObjectTy and objNode.len > 2 and objNode[2].kind == nnkRecList:
+      for identDefs in objNode[2]:
+        if identDefs.kind == nnkIdentDefs:
+          let fType = identDefs[^2].repr.strip()
+          let fTsType = mapNimTypeToTs(fType)
+          for k in 0 ..< identDefs.len - 2:
+            let (fName, _) = cleanName(identDefs[k])
+            fields.add(TsTypeField(name: fName, tsType: fTsType))
+
+    gExportedTypes.add(TsType(name: typeName, isHandle: isRef, fields: fields))
     result = typeDef
 
   elif body.kind == nnkTypeSection:
-    result.add(body)
+    result = body
     for typeDef in body:
-      let (typeName, _) = cleanName(typeDef[0])
-      let isRef = typeDef[2].kind == nnkRefTy or typeDef[2].repr.contains("ref object")
-      gExportedTypes.add(TsType(name: typeName, isHandle: isRef, fields: @[]))
+      var tDef = typeDef
+      var typeName = ""
+      if tDef[0].kind == nnkPragmaExpr:
+        let (nameStr, _) = cleanName(tDef[0][0])
+        typeName = nameStr
+      else:
+        let (nameStr, _) = cleanName(tDef[0])
+        typeName = nameStr
+      let isRef = tDef[2].kind == nnkRefTy or tDef[2].repr.contains("ref object")
+      var fields: seq[TsTypeField] = @[]
+      var objNode = tDef[2]
+      if objNode.kind == nnkRefTy and objNode.len > 0:
+        objNode = objNode[0]
+      if objNode.kind == nnkObjectTy and objNode.len > 2 and objNode[2].kind == nnkRecList:
+        for identDefs in objNode[2]:
+          if identDefs.kind == nnkIdentDefs:
+            let fType = identDefs[^2].repr.strip()
+            let fTsType = mapNimTypeToTs(fType)
+            for k in 0 ..< identDefs.len - 2:
+              let (fName, _) = cleanName(identDefs[k])
+              fields.add(TsTypeField(name: fName, tsType: fTsType))
+      gExportedTypes.add(TsType(name: typeName, isHandle: isRef, fields: fields))
   else:
     result.add(body)
 
