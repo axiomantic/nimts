@@ -76,5 +76,5 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: nimts-*.tgz
+          files: "*.tgz"
           generate_release_notes: true
