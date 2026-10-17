@@ -133,7 +133,7 @@ For all parallel development tracks:
   - *Weave*: `vine gate && vine weave` [WOVEN]
 
 ### Phase 5: AudioWorklet, WASM LTO & NimMain Hardening (Reported from rg2 & green-rabbit)
-- [ ] **Task 5.1: NimMain Export, Once-Guard & wasm-ld LTO Preservation** (`nimts-architect`)
+- [x] **Task 5.1: NimMain Export, Once-Guard & wasm-ld LTO Preservation** (`nimts-architect`)
   - *Strand*: `strand/task-5-1-nimmain-init`
   - *Provider*: `src/nimts/memory.nim`, `src/nimts/macros.nim`, `scripts/compile_wasm.sh`
   - *Defects Addressed*:
@@ -141,7 +141,7 @@ For all parallel development tracks:
     - Implement `ensureNimTsInit()` once-guard in `memory.nim` and export `nimts_init()`.
     - Automatically call `ensureNimTsInit()` in companion procs and invoke `_exports.NimMain()` / `_exports.nimts_init()` in `initNimTs` and `initNimTsSync`.
   - *Verification*: Procs using dynamic method dispatch (`chckNilDisp`) initialize and execute cleanly without WASM traps.
-  - *Weave*: `vine gate && vine weave`
+  - *Weave*: `vine gate && vine weave` [WOVEN]
 
 - [ ] **Task 5.2: AudioWorklet TextEncoder/Decoder Fallback & Synchronous Loader** (`nimts-implementer`)
   - *Strand*: `strand/task-5-2-audioworklet-hardening`
