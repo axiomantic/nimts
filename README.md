@@ -1,47 +1,134 @@
 # NimTS: nimpy for TypeScript & WebAssembly
 
+[![CI](https://github.com/axiomantic/nimts/actions/workflows/ci.yml/badge.svg)](https://github.com/axiomantic/nimts/actions/workflows/ci.yml)
+[![npm version](https://img.shields.io/npm/v/nimts.svg)](https://www.npmjs.com/package/nimts)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Nimble](https://img.shields.io/badge/nimble-nimts-orange.svg)](https://nimble.directory/)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/axiomantic/nimts/pulls)
+
 **NimTS** is a zero-friction, non-invasive bridge generator connecting **Nim** to **TypeScript** and **WebAssembly (WASM)**.
 
-Just like `nimpy` allows writing native Python extension modules in Nim with natural types, `nimts` allows writing high-performance WebAssembly libraries in Nim with natural Nim signatures, companion C-ABI entry points, automatic `.d.ts` declaration generation, and modern TypeScript wrappers.
+Just like [`nimpy`](https://github.com/yglukhov/nimpy) allows writing native Python extension modules in Nim with natural types, `nimts` allows writing high-performance WebAssembly libraries in Nim with natural Nim signatures, companion C-ABI entry points, automatic `.d.ts` declaration generation, and modern TypeScript wrappers.
 
 ---
 
-## Key Features
+## Key Highlights
 
-### 1. Non-Invasive `{.exportts.}`
-Applying `{.exportts.}` (or calling `exportTs(myProc)` in a separate bridge module) **never alters the native Nim signature or behavior** of your procedures. The original proc remains 100% general-purpose for native CLI tools, native VST/CLAP audio plugins, and native unit tests with zero runtime overhead.
+- ⚡ **Non-Invasive `{.exportts.}`**: Never perturbs the native Nim signature or behavior of your code. Procs remain 100% callable by native Nim CLI tools, VST/CLAP audio plugins, and native unit tests with zero overhead.
+- 🔄 **Bidirectional Async Bridge**: Automatically bridges Nim `Future[T]` and JavaScript `Promise<T>` without blocking the main browser thread.
+- 🎛️ **Stateful Handles with GC**: Exports `ref object` instances as type-safe opaque handles with automatic garbage collection via JavaScript's `FinalizationRegistry` and deterministic manual `.dispose()`.
+- 📦 **Vite Plugin**: Import `.nim` files directly into your frontend code with on-the-fly compilation and hot module reloading.
+- 🎵 **AudioWorklet & Worker Ready**: Supports streaming instantiation, pre-compiled `WebAssembly.Module` sharing, and raw `BufferSource` buffers.
+
+---
+
+## Installation
+
+### In your Nim project (Nimble)
+```bash
+nimble install nimts
+```
+
+### In your TypeScript / Vite project (npm)
+```bash
+npm install nimts
+```
+
+---
+
+## Quickstart (3 Minutes)
+
+### 1. Write your Nim module (`engine.nim`)
 
 ```nim
+# engine.nim
+import std/asyncdispatch
 import nimts
 
-# Native signature preserved 100%
-proc computeFilter*(cutoff: float32, resonance: float32): float32 {.exportts.} =
-  cutoff * (1.0'f32 - resonance * 0.5'f32)
+type
+  AudioEngine* {.exportts.} = ref object
+    sampleRate*: float32
+    volume*: float32
 
-# OpenArray / byte sequences map directly to Uint8Array views
-proc parsePatch*(data: openArray[byte]): seq[byte] {.exportts.} =
-  result = @[0xAA'u8, 0xBB'u8]
-```
+  SynthPatch* = object
+    name*: string
+    polyphony*: int32
 
-### 2. Stateful Handles for `ref object` Instances
-Stateful entities (such as audio synths, patch graphs, and DSP voice pools) are tracked via type-safe opaque handles (`HandleId`). The generated TypeScript classes automatically bind to JavaScript's modern `FinalizationRegistry` for automatic garbage collection, while also providing explicit `.dispose()` methods.
+# 1. Primitives: passed & returned directly
+proc addNumbers*(a: int32, b: int32): int32 {.exportts.} =
+  a + b
 
-```nim
-type AudioEngine* {.exportts.} = ref object
-  sampleRate*: float32
-  voices*: int32
+# 2. Strings: UTF-8 marshaled automatically
+proc greet*(name: string): string {.exportts.} =
+  "Hello, " & name & " from Nim!"
 
+# 3. Binary buffers: maps directly to Uint8Array
+proc processData*(data: openArray[byte]): seq[byte] {.exportts.} =
+  result = newSeq[byte](data.len)
+  for i in 0 ..< data.len:
+    result[i] = data[i] xor 0xFF'u8
+
+# 4. Stateful handles for ref object instances
 proc createEngine*(sampleRate: float32): AudioEngine {.exportts.} =
-  AudioEngine(sampleRate: sampleRate, voices: 16)
+  AudioEngine(sampleRate: sampleRate, volume: 1.0'f32)
+
+proc setVolume*(engine: AudioEngine, vol: float32) {.exportts.} =
+  if engine != nil:
+    engine.volume = vol
+
+# 5. Non-blocking async Future[T] -> JS Promise<T>
+proc computeAsync*(x: int32): Future[int32] {.async, exportts.} =
+  return x * 42
+
+static:
+  # Emits engine.d.ts and engine.js glue code at compile-time
+  emitTsGlueFiles("engine", ".")
 ```
 
-In TypeScript:
-```typescript
-import { createEngine } from './synth_module.js';
+### 2. Compile to WebAssembly
 
+Using the standalone CLI:
+```bash
+nimts compile engine.nim
+```
+
+Or using the bundled compilation script:
+```bash
+./scripts/compile_wasm.sh engine.nim engine.wasm
+```
+
+### 3. Consume in TypeScript / JavaScript
+
+```typescript
+// app.ts
+import {
+  initNimTs,
+  addNumbers,
+  greet,
+  processData,
+  createEngine,
+  setVolume,
+  computeAsync
+} from './engine.js';
+
+// Initialize the WebAssembly module
+await initNimTs();
+
+// Call synchronous functions
+console.log(addNumbers(10, 32)); // 42
+console.log(greet("TypeScript")); // "Hello, TypeScript from Nim!"
+
+// Process binary buffers
+const input = new Uint8Array([0x00, 0xAA, 0xFF]);
+const output = processData(input); // Uint8Array [ 255, 85, 0 ]
+
+// Stateful instances with handles
 const engine = createEngine(48000.0);
-console.log(engine.handleId); // 1
-engine.dispose(); // Deterministic release or automatic FinalizationRegistry GC
+setVolume(engine, 0.8);
+engine.dispose(); // Explicit release, or automatic GC via FinalizationRegistry
+
+// Async Future[T] seamlessly awaited as Promise<T>
+const result = await computeAsync(10); // 420
 ```
 
 ---
@@ -50,49 +137,48 @@ engine.dispose(); // Deterministic release or automatic FinalizationRegistry GC
 
 ### Gotcha 1: Chrome / V8 4KB Main-Thread Sync Compile Limit
 Browser main threads disallow synchronous WebAssembly compilation (`WebAssembly.compile` or `new WebAssembly.Module`) if the binary buffer size exceeds 4KB, throwing:
-`RangeError: WebAssembly.Compile is disallowed on the main thread, if the buffer size is larger than 4KB`
+> `RangeError: WebAssembly.Compile is disallowed on the main thread, if the buffer size is larger than 4KB`
 
 **NimTS Solution:**
-The generated JavaScript glue automatically leverages:
-1. **`WebAssembly.instantiateStreaming(fetch(...))`** for modern bundlers (Vite, Rollup, Webpack) with top-level await support.
+The generated JavaScript wrapper automatically handles all modern runtime environments:
+1. **`WebAssembly.instantiateStreaming(fetch(...))`** for modern browsers and bundlers.
 2. **Explicit `initNimTs(options)`** accepting:
-   - File path / URL (`wasmPath`)
-   - Pre-compiled `WebAssembly.Module` (ideal for `AudioWorkletNode` where modules are sent via `processorOptions`)
-   - `BufferSource` / `ArrayBuffer`
+   - `wasmPath`: URL or local file path.
+   - `wasmModule`: Pre-compiled `WebAssembly.Module` (ideal for passing across threads to an `AudioWorkletNode` or Web Worker).
+   - `wasmBytes`: Raw `BufferSource` / `ArrayBuffer`.
+   - `wasmInstance`: Existing instantiated `WebAssembly.Instance`.
 
-### Gotcha 2: Nim async/await (`Future[T]`) <-> JavaScript `Promise<T>` Bridge
-WebAssembly is fundamentally single-threaded; blocking the WASM thread while waiting for a network request or async callback would freeze the browser.
+### Gotcha 2: Nim async/await (`Future[T]`) $\leftrightarrow$ JavaScript `Promise<T>` Bridge
+WebAssembly is fundamentally single-threaded; blocking the WASM thread while waiting for an asynchronous event would freeze the browser host.
 
 **NimTS Solution:**
 NimTS implements a bidirectional, non-blocking promise bridge:
-- **Nim $\to$ JS**: When an exported `proc foo(): Future[T] {.async, exportts.}` is called, Nim allocates a `promiseId`, registers a completion callback, and immediately returns the ID to JavaScript, which wraps it in a real `Promise<T>`. When the Future completes, Nim calls the imported JS function `nimts_js_resolve_promise` or `nimts_js_reject_promise`.
-- **JS $\to$ Nim**: When Nim awaits an imported JS async operation, Nim registers a pending `Future[T]` and passes a `futureId`. When the JS promise settles, JS calls back into WASM `wasm.nimts_resume_future(futureId, dataPtr, dataLen, isError)` which immediately wakes the waiting Nim coroutine.
+- **Nim $\to$ JS**: When an exported `proc foo(): Future[T] {.async, exportts.}` is called, Nim allocates a monotonic `PromiseId`, registers a completion callback, and immediately returns the ID to JavaScript, which wraps it in a real `Promise<T>`. When the Future completes or fails, Nim notifies JavaScript via `nimts_js_resolve_promise` or `nimts_js_reject_promise`.
+- **JS $\to$ Nim**: When Nim awaits an external async operation, it registers a pending `Future[T]` and passes a `FutureId`. When the JS promise settles, JS calls back into WASM `wasm.nimts_resume_future(futureId, dataPtr, dataLen, isError)` which immediately wakes the waiting Nim coroutine.
 
-```nim
-proc fetchAndProcess*(url: string): Future[string] {.async, exportts.} =
-  return "Processed from " & url
-```
+### Gotcha 3: Stateful Objects & Handle Leaks
+Passing raw pointers between WebAssembly linear memory and JavaScript risks use-after-free, memory corruption, and garbage collection leaks.
 
-In TypeScript:
-```typescript
-const result: string = await fetchAndProcess("https://example.com/patch");
-```
+**NimTS Solution:**
+Stateful entities (`ref object`) are registered in an internal Nim handle registry that increments Nim GC reference counts (`GC_ref`). JavaScript receives a typed class holding an opaque `HandleId`:
+- **Manual cleanup**: `.dispose()` deterministically frees the handle and unrefs the Nim object (`GC_unref`).
+- **Automatic fallback**: Bound to JavaScript's modern `FinalizationRegistry` to prevent leaks if `.dispose()` is forgotten.
 
 ---
 
-## Type Mapping Table
+## Type Mapping Reference
 
 | Nim Type | TypeScript Type | WASM Linear Memory Marshaling |
 | :--- | :--- | :--- |
 | `int32`, `int16`, `int8`, `uint32` | `number` | Direct register pass / return |
 | `int64`, `uint64` | `bigint` | 64-bit WASM integer (`i64`) |
-| `float32`, `float64` | `number` | Direct WASM float (`f32` / `f64`) |
+| `float32`, `float64` | `number` | Direct WASM float register (`f32` / `f64`) |
 | `bool` | `boolean` | `int32` (0 or 1) $\leftrightarrow$ `boolean` |
 | `string`, `cstring` | `string` | UTF-8 `(ptr, len)` allocated via `nimts_alloc` |
-| `openArray[byte]`, `seq[byte]` | `Uint8Array` | Zero-copy `toOpenArray` view or `readBytes` |
+| `openArray[byte]`, `seq[byte]` | `Uint8Array` | Direct view copy via `allocBytesResult` / `readBytes` |
 | `ref object` | `Class` | Opaque `HandleId` with `FinalizationRegistry` |
 | `object`, `tuple` | `interface` | Automatic JSON serialization / deserialization |
-| `Future[T]` | `Promise<T>` | Bidirectional `PromiseId` non-blocking bridge |
+| `Future[T]` | `Promise<T>` | Bidirectional non-blocking `PromiseId` bridge |
 
 ---
 
@@ -116,26 +202,104 @@ export default defineConfig({
 
 Then in your frontend:
 ```typescript
-import { initNimTs, parsePatch } from './synth/engine.nim';
+import { initNimTs, processData } from './engine.nim';
 
 await initNimTs();
-const result = parsePatch(patchBytes);
+const result = processData(new Uint8Array([1, 2, 3]));
+```
+
+---
+
+## AudioWorklet / Web Worker Pattern
+
+To run Nim in an `AudioWorkletProcessor`:
+
+```typescript
+// main.ts
+const wasmModule = await WebAssembly.compileStreaming(fetch('/engine.wasm'));
+audioContext.audioWorklet.addModule('dsp-processor.js');
+
+const node = new AudioWorkletNode(audioContext, 'dsp-processor', {
+  processorOptions: { wasmModule }
+});
+```
+
+```typescript
+// dsp-processor.ts
+import { initNimTs, processAudio } from './engine.js';
+
+class DspProcessor extends AudioWorkletProcessor {
+  constructor(options) {
+    super();
+    // Initialize synchronously from pre-compiled module
+    initNimTs({ wasmModule: options.processorOptions.wasmModule });
+  }
+
+  process(inputs, outputs) {
+    // Zero-allocation high-speed DSP processing
+    processAudio(inputs[0][0], outputs[0][0]);
+    return true;
+  }
+}
+registerProcessor('dsp-processor', DspProcessor);
+```
+
+---
+
+## CLI Reference
+
+NimTS includes a command-line tool for compiling Nim modules into standalone WebAssembly:
+
+```bash
+# Display help
+nimts --help
+
+# Display version
+nimts --version
+
+# Compile a Nim module to WASM
+nimts compile src/dsp.nim dist/dsp.wasm
 ```
 
 ---
 
 ## Running Tests
 
+NimTS has comprehensive test suites for both native Nim execution and WebAssembly runtime integration:
+
 ```bash
-# 1. Native Nim direct invocation tests
-nim r -p:src tests/test_native.nim
+# Run Nimble unit tests (macro non-invasiveness, memory, handles, async bridge, codegen, CLI)
+nimble test
 
-# 2. Codegen unit tests
-nim r -p:src tests/test_codegen.nim
-
-# 3. WebAssembly sync & async Vitest suite
+# Run TypeScript / Vitest WebAssembly integration tests
 npm test
 ```
 
+---
+
+## Publishing
+
+To publish a new version to npm and GitHub:
+
+```bash
+# 1. Ensure all tests pass and package builds cleanly
+npm run prepublishOnly
+
+# 2. Check packaging contents
+npm pack --dry-run
+
+# 3. Publish to npm
+npm publish --access public
+```
+
+---
+
+## Contributing
+
+Contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for local development setup, toolchain requirements, and guidelines.
+
+---
+
 ## License
-MIT License.
+
+MIT License. Copyright (c) 2026 [Axiomantic](https://github.com/axiomantic) & Contributors.

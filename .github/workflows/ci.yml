@@ -1,0 +1,71 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ ubuntu-latest, macos-latest ]
+        node-version: [ 20.x, 22.x ]
+        nim-version: [ '2.2.0' ]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+
+      - name: Set up Nim ${{ matrix.nim-version }}
+        uses: jason079/setup-nim@v1
+        with:
+          version: ${{ matrix.nim-version }}
+
+      - name: Install LLVM & WebAssembly Toolchain (Ubuntu)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang lld llvm
+          # Install wasi-sysroot
+          WASI_VERSION=22
+          WASI_VERSION_FULL=${WASI_VERSION}.0
+          wget -q https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-${WASI_VERSION}/wasi-sysroot-${WASI_VERSION_FULL}.tar.gz
+          sudo tar -xzf wasi-sysroot-${WASI_VERSION_FULL}.tar.gz -C /usr/share/
+          echo "WASI_SYSROOT=/usr/share/wasi-sysroot" >> $GITHUB_ENV
+          echo "CLANG_BIN=clang" >> $GITHUB_ENV
+          echo "WASM_LD_BIN=wasm-ld" >> $GITHUB_ENV
+
+      - name: Install LLVM & WebAssembly Toolchain (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          brew install llvm wasi-sysroot || true
+          echo "CLANG_BIN=/opt/homebrew/opt/llvm/bin/clang" >> $GITHUB_ENV
+          echo "WASM_LD_BIN=/opt/homebrew/bin/wasm-ld" >> $GITHUB_ENV
+          echo "WASI_SYSROOT=/opt/homebrew/share/wasi-sysroot" >> $GITHUB_ENV
+
+      - name: Install Node dependencies
+        run: npm ci
+
+      - name: Build TypeScript code
+        run: npm run build
+
+      - name: Run Nimble package check and unit tests
+        run: |
+          nimble check
+          nimble test
+
+      - name: Run Vitest integration suite
+        run: npm test
+
+      - name: Verify npm packaging
+        run: npm pack --dry-run

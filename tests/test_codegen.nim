@@ -67,3 +67,64 @@ suite "NimTS Code Generation Verification":
     check js.contains("export async function loadPatchAsync(url)")
     check js.contains("export async function initNimTs")
     check js.contains("WebAssembly.instantiateStreaming")
+
+  test "mapNimTypeToTs maps all core Nim types and generic wrappers correctly":
+    check mapNimTypeToTs("int32") == "number"
+    check mapNimTypeToTs("float64") == "number"
+    check mapNimTypeToTs("int64") == "bigint"
+    check mapNimTypeToTs("uint64") == "bigint"
+    check mapNimTypeToTs("bool") == "boolean"
+    check mapNimTypeToTs("string") == "string"
+    check mapNimTypeToTs("cstring") == "string"
+    check mapNimTypeToTs("openArray[byte]") == "Uint8Array"
+    check mapNimTypeToTs("seq[byte]") == "Uint8Array"
+    check mapNimTypeToTs("void") == "void"
+    check mapNimTypeToTs("Future[int32]") == "Promise<number>"
+    check mapNimTypeToTs("Future[string]") == "Promise<string>"
+    check mapNimTypeToTs("Option[string]") == "string | null"
+    check mapNimTypeToTs("seq[string]") == "string[]"
+    check mapNimTypeToTs("NimTsHandle[PatchGraph]") == "PatchGraph"
+
+  test "generateJs handles void, boolean, and json object return kinds":
+    let meta = TsModuleMeta(
+      name: "advanced_mod",
+      wasmFileName: "advanced_mod.wasm",
+      types: @[],
+      procs: @[
+        TsProc(
+          name: "resetState",
+          cabiName: "nimts_resetState",
+          params: @[],
+          returnNimType: "void",
+          returnTsType: "void",
+          isAsync: false,
+          isHandleReturn: false,
+          returnKind: "void"
+        ),
+        TsProc(
+          name: "isValid",
+          cabiName: "nimts_isValid",
+          params: @[TsParam(name: "id", nimType: "int32", tsType: "number")],
+          returnNimType: "bool",
+          returnTsType: "boolean",
+          isAsync: false,
+          isHandleReturn: false,
+          returnKind: "primitive"
+        ),
+        TsProc(
+          name: "getConfig",
+          cabiName: "nimts_getConfig",
+          params: @[],
+          returnNimType: "SynthConfig",
+          returnTsType: "SynthConfig",
+          isAsync: false,
+          isHandleReturn: false,
+          returnKind: "object"
+        )
+      ]
+    )
+
+    let js = generateJs(meta)
+    check js.contains("export function resetState()")
+    check js.contains("return Boolean(_exports.nimts_isValid(id));")
+    check js.contains("JSON.parse(jsonStr);")

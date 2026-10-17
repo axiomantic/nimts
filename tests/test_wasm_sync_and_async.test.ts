@@ -116,15 +116,105 @@ describe('NimTS WebAssembly Integration (Sync & Async)', () => {
       const res = await promise;
       expect(res).toBe('Hello from JS callback!');
     });
+
+    it('rejects a pending Nim Future when resumed from JS with error flag', async () => {
+      const { startPendingOperation, getNimTsModule } = await import('./fixtures/test_module.js');
+      const wasm = getNimTsModule();
+      const promise = startPendingOperation();
+      const fid = wasm.nimts_getLastFutureId();
+      expect(fid).toBeGreaterThan(0);
+
+      // Allocate error string and resume future with isError=1
+      const encoder = new TextEncoder();
+      const errPayload = encoder.encode('Simulated Async Failure 503');
+      const ptr = wasm.nimts_alloc(errPayload.length + 1);
+      const mem = new Uint8Array(wasm.memory.buffer, ptr, errPayload.length);
+      mem.set(errPayload);
+
+      // Call nimts_resume_future(futureId, ptr, len, isError=1)
+      wasm.nimts_resume_future(fid, ptr, errPayload.length, 1);
+      wasm.nimts_free(ptr);
+
+      await expect(promise).rejects.toThrow('Simulated Async Failure 503');
+    });
+  });
+
+  describe('Edge Cases and Boundaries', () => {
+    it('handles empty strings and special characters', () => {
+      expect(greet('')).toBe('Hello, !');
+      expect(greet('   ')).toBe('Hello,    !');
+      expect(greet('Line1\nLine2\tTab')).toBe('Hello, Line1\nLine2\tTab!');
+    });
+
+    it('handles empty Uint8Array', () => {
+      const empty = new Uint8Array(0);
+      const res = checksumBytes(empty);
+      expect(res).toBeInstanceOf(Uint8Array);
+      expect(res.length).toBe(0);
+    });
+
+    it('handles negative integers and zero', () => {
+      expect(addNumbers(0, 0)).toBe(0);
+      expect(addNumbers(-10, -32)).toBe(-42);
+      expect(addNumbers(100, -100)).toBe(0);
+    });
+
+    it('manages multiple concurrent independent handle instances', () => {
+      const engines = [
+        createEngine(44100.0),
+        createEngine(48000.0),
+        createEngine(96000.0)
+      ];
+
+      // Set distinct volumes
+      setEngineVolume(engines[0], 0.2);
+      setEngineVolume(engines[1], 0.5);
+      setEngineVolume(engines[2], 0.8);
+
+      expect(getEngineVolume(engines[0])).toBeCloseTo(0.2, 2);
+      expect(getEngineVolume(engines[1])).toBeCloseTo(0.5, 2);
+      expect(getEngineVolume(engines[2])).toBeCloseTo(0.8, 2);
+
+      // Dispose middle one
+      engines[1].dispose();
+      expect(engines[1].handleId).toBe(0);
+
+      // Others remain valid and independent
+      expect(getEngineVolume(engines[0])).toBeCloseTo(0.2, 2);
+      expect(getEngineVolume(engines[2])).toBeCloseTo(0.8, 2);
+
+      // Idempotent double-dispose
+      engines[1].dispose();
+      expect(engines[1].handleId).toBe(0);
+
+      engines[0].dispose();
+      engines[2].dispose();
+    });
+  });
+
+  describe('Module Lifecycle and State Getters', () => {
+    it('provides isInitialized, getNimTs, and getNimTsModule', async () => {
+      const { isInitialized, getNimTs, getNimTsModule } = await import('./fixtures/test_module.js');
+      expect(isInitialized()).toBe(true);
+
+      const exports = getNimTs();
+      expect(exports).toBeDefined();
+      expect(typeof exports.addNumbers).toBe('function');
+      expect(exports.addNumbers(10, 20)).toBe(30);
+
+      const rawWasm = getNimTsModule();
+      expect(rawWasm).toBeDefined();
+      expect(typeof rawWasm.nimts_alloc).toBe('function');
+      expect(typeof rawWasm.nimts_free).toBe('function');
+    });
   });
 
   describe('Gotcha 1 Alt Loaders: BufferSource & Pre-compiled WebAssembly.Module', () => {
     it('instantiates from pre-loaded ArrayBuffer (AudioWorklet mode)', async () => {
       const bytes = await fs.readFile(WASM_FILE);
-      const { initNimTs: initAlt, addNumbers: addAlt } = await import('./fixtures/test_module.js');
-      // Already initialized, but testing raw buffer instantiation
       const module = await WebAssembly.compile(bytes);
       expect(module).toBeInstanceOf(WebAssembly.Module);
     });
   });
 });
+

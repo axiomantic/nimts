@@ -22,18 +22,20 @@ when defined(wasm) or defined(emscripten) or defined(nimtsWasm):
   proc nimts_js_call_async*(funcId: int32, futureId: int32, argsPtr: pointer, argsLen: int32) {.importc, cdecl.}
 else:
   # Native host stubs (for running test_native without WASM JS host)
-  type MockResolveHandler* = proc(promiseId: int32, dataPtr: pointer, dataLen: int32, isError: bool)
+  type MockResolveHandler* = proc(promiseId: int32, dataPtr: pointer, dataLen: int32, isError: bool) {.gcsafe.}
   var gMockHandler*: MockResolveHandler = nil
 
-  proc nimts_js_resolve_promise*(promiseId: int32, dataPtr: pointer, dataLen: int32) =
-    if gMockHandler != nil:
-      gMockHandler(promiseId, dataPtr, dataLen, false)
+  proc nimts_js_resolve_promise*(promiseId: int32, dataPtr: pointer, dataLen: int32) {.gcsafe.} =
+    {.cast(gcsafe).}:
+      if gMockHandler != nil:
+        gMockHandler(promiseId, dataPtr, dataLen, false)
 
-  proc nimts_js_reject_promise*(promiseId: int32, errPtr: pointer, errLen: int32) =
-    if gMockHandler != nil:
-      gMockHandler(promiseId, errPtr, errLen, true)
+  proc nimts_js_reject_promise*(promiseId: int32, errPtr: pointer, errLen: int32) {.gcsafe.} =
+    {.cast(gcsafe).}:
+      if gMockHandler != nil:
+        gMockHandler(promiseId, errPtr, errLen, true)
 
-  proc nimts_js_call_async*(funcId: int32, futureId: int32, argsPtr: pointer, argsLen: int32) =
+  proc nimts_js_call_async*(funcId: int32, futureId: int32, argsPtr: pointer, argsLen: int32) {.gcsafe.} =
     discard
 
 proc nextPromiseId*(): PromiseId =
@@ -54,7 +56,7 @@ proc nimts_resume_future*(futureId: int32, dataPtr: pointer, dataLen: int32, isE
 proc bridgeFutureToPromise*[T](fut: Future[T]): PromiseId =
   let pid = nextPromiseId()
 
-  proc notify(f: Future[T]) =
+  proc notify(f: Future[T]) {.gcsafe.} =
     if f.failed:
       let msg = f.readError.msg
       nimts_js_reject_promise(pid.int32, cast[pointer](msg.cstring), msg.len.int32)
