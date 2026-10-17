@@ -22,13 +22,26 @@
   "files": [
     "dist",
     "src",
-    "nimts.nimble"
+    "c_src",
+    "scripts",
+    "nimts.nimble",
+    "LICENSE",
+    "README.md"
   ],
   "scripts": {
     "build": "tsc",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "prepublishOnly": "npm run build && npm test"
   },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/axiomantic/nimts.git"
+  },
+  "bugs": {
+    "url": "https://github.com/axiomantic/nimts/issues"
+  },
+  "homepage": "https://github.com/axiomantic/nimts#readme",
   "keywords": [
     "nim",
     "typescript",

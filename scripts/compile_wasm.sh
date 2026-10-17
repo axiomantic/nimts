@@ -9,18 +9,44 @@ INPUT_NIM="${1:-${ROOT_DIR}/tests/fixtures/test_module.nim}"
 OUTPUT_WASM="${2:-${ROOT_DIR}/tests/fixtures/test_module.wasm}"
 NIMCACHE_DIR="${3:-${ROOT_DIR}/tests/fixtures/nimcache}"
 
-CLANG_BIN="${CLANG_BIN:-/opt/homebrew/opt/llvm/bin/clang}"
-WASM_LD_BIN="${WASM_LD_BIN:-/opt/homebrew/bin/wasm-ld}"
-WASI_SYSROOT="${WASI_SYSROOT:-/opt/homebrew/share/wasi-sysroot}"
-NIM_LIB="$(nim dump 2>&1 | grep "lib$" | head -1 || echo "/Users/eek/.local/share/mise/installs/nim/2.2.12/lib")"
+if [[ -z "${CLANG_BIN:-}" ]]; then
+  if [[ -x "/opt/homebrew/opt/llvm/bin/clang" ]]; then
+    CLANG_BIN="/opt/homebrew/opt/llvm/bin/clang"
+  else
+    CLANG_BIN="$(command -v clang || echo "")"
+  fi
+fi
 
-if [[ ! -x "${CLANG_BIN}" ]]; then
-  echo "Error: clang was not found at ${CLANG_BIN}" >&2
+if [[ -z "${WASM_LD_BIN:-}" ]]; then
+  if [[ -x "/opt/homebrew/bin/wasm-ld" ]]; then
+    WASM_LD_BIN="/opt/homebrew/bin/wasm-ld"
+  else
+    WASM_LD_BIN="$(command -v wasm-ld || echo "")"
+  fi
+fi
+
+if [[ -z "${WASI_SYSROOT:-}" ]]; then
+  if [[ -d "/opt/homebrew/share/wasi-sysroot" ]]; then
+    WASI_SYSROOT="/opt/homebrew/share/wasi-sysroot"
+  elif [[ -d "/usr/share/wasi-sysroot" ]]; then
+    WASI_SYSROOT="/usr/share/wasi-sysroot"
+  else
+    WASI_SYSROOT=""
+  fi
+fi
+
+NIM_LIB="$(nim dump 2>&1 | grep "lib$" | head -1 || echo "")"
+if [[ -z "${NIM_LIB}" || ! -d "${NIM_LIB}" ]]; then
+  NIM_LIB="/Users/eek/.local/share/mise/installs/nim/2.2.12/lib"
+fi
+
+if [[ -z "${CLANG_BIN}" || ! -x "${CLANG_BIN}" ]]; then
+  echo "Error: clang was not found at '${CLANG_BIN}'" >&2
   exit 1
 fi
 
-if [[ ! -x "${WASM_LD_BIN}" ]]; then
-  echo "Error: wasm-ld was not found at ${WASM_LD_BIN}" >&2
+if [[ -z "${WASM_LD_BIN}" || ! -x "${WASM_LD_BIN}" ]]; then
+  echo "Error: wasm-ld was not found at '${WASM_LD_BIN}'" >&2
   exit 1
 fi
 

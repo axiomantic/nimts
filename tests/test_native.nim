@@ -30,6 +30,9 @@ proc getVoiceCount*(synth: AudioSynth): int32 {.exportts.} =
   if synth == nil: return 0
   synth.voiceCount
 
+proc configureSynth*(cfg: SynthConfig): string {.exportts.} =
+  result = cfg.name & ":" & $cfg.polyphony & "ch" & $cfg.channels
+
 proc renderSynthAsync*(synth: AudioSynth, frames: int32): Future[int32] {.async, exportts.} =
   if synth == nil: return 0
   return synth.voiceCount * frames
@@ -54,8 +57,14 @@ suite "Native Nim {.exportts.} Non-Invasive Verification":
     check synth.voiceCount == 16
     check getVoiceCount(synth) == 16
 
+  test "Direct invocation with value objects":
+    let cfg = SynthConfig(channels: 2, polyphony: 8, name: "FM")
+    let desc = configureSynth(cfg)
+    check desc == "FM:8ch2"
+
   test "Direct invocation with async Future[T]":
     let synth = createSynth(44100.0, 8)
     let fut = renderSynthAsync(synth, 128)
     let val = waitFor fut
     check val == 8 * 128
+

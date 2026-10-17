@@ -3,7 +3,6 @@
 
 import std/unittest
 import std/strutils
-import std/os
 import nimts/codegen
 
 suite "NimTS Code Generation Verification":

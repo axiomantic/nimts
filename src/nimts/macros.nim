@@ -3,11 +3,7 @@
 
 import std/macros
 import std/strutils
-import std/sequtils
 import std/json
-import types
-import memory
-import async_bridge
 import codegen
 
 var
@@ -254,7 +250,7 @@ macro exportTs*(target: untyped): untyped =
   if target.kind in [nnkProcDef, nnkTypeSection, nnkTypeDef, nnkStmtList]:
     result = processExportTs(target)
   else:
-    let (nameStr, nameIdent) = cleanName(target)
+    let (nameStr, _) = cleanName(target)
     # Check if target is a known type or proc
     result = parseStmt("""
 when declared(""" & nameStr & """):

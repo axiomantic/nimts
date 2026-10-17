@@ -8,3 +8,10 @@ tests/fixtures/*.js
 tests/fixtures/*.d.ts
 *.o
 .DS_Store
+
+# Compiled binaries
+/nimts
+tests/test_*
+!tests/test_*.nim
+!tests/test_*.ts
+

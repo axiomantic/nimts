@@ -21,10 +21,10 @@ export interface NimTsPluginOptions {
 
 export function nimtsPlugin(options: NimTsPluginOptions = {}): Plugin {
   let config: ResolvedConfig;
-  const nimBin = options.nimBin || 'nim';
-  const clangBin = options.clangBin || '/opt/homebrew/opt/llvm/bin/clang';
-  const wasmldBin = options.wasmldBin || '/opt/homebrew/bin/wasm-ld';
-  const sysroot = options.sysroot || '/opt/homebrew/share/wasi-sysroot';
+  const nimBin = options.nimBin || process.env.NIM_BIN || 'nim';
+  const clangBin = options.clangBin || process.env.CLANG_BIN || (process.platform === 'darwin' && path.isAbsolute('/opt/homebrew/opt/llvm/bin/clang') ? '/opt/homebrew/opt/llvm/bin/clang' : 'clang');
+  const wasmldBin = options.wasmldBin || process.env.WASM_LD_BIN || (process.platform === 'darwin' && path.isAbsolute('/opt/homebrew/bin/wasm-ld') ? '/opt/homebrew/bin/wasm-ld' : 'wasm-ld');
+  const sysroot = options.sysroot || process.env.WASI_SYSROOT || (process.platform === 'darwin' ? '/opt/homebrew/share/wasi-sysroot' : '/usr/share/wasi-sysroot');
 
   return {
     name: 'vite-plugin-nimts',
@@ -114,6 +114,26 @@ export function nimtsPlugin(options: NimTsPluginOptions = {}): Plugin {
             '-o', objPath,
             cPath
           ]);
+        }
+
+        // Compile builtins_wasm.c if available
+        const builtinsPath = path.resolve(__dirname, '../c_src/builtins_wasm.c');
+        try {
+          await fs.access(builtinsPath);
+          const builtinsObj = path.resolve(nimcacheDir, 'builtins_wasm.o');
+          await execFileAsync(clangBin, [
+            '--target=wasm32-wasip1',
+            `--sysroot=${sysroot}`,
+            '-O3',
+            '-flto',
+            '-mbulk-memory',
+            '-c',
+            '-o', builtinsObj,
+            builtinsPath
+          ]);
+          objFiles.push(builtinsObj);
+        } catch (_) {
+          // builtins_wasm.c optional if sysroot provides compiler-rt
         }
 
         // Link with wasm-ld
