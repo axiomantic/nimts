@@ -131,3 +131,30 @@ For all parallel development tracks:
     - Add automated `tsc --noEmit` check in Vitest suite to guarantee all generated `.d.ts` files are valid TypeScript.
   - *Verification*: `nimble test && npm test && npm run docs:build && npm pack --dry-run` all pass 100% green with zero warnings.
   - *Weave*: `vine gate && vine weave` [WOVEN]
+
+### Phase 5: AudioWorklet, WASM LTO & NimMain Hardening (Reported from rg2 & green-rabbit)
+- [ ] **Task 5.1: NimMain Export, Once-Guard & wasm-ld LTO Preservation** (`nimts-architect`)
+  - *Strand*: `strand/task-5-1-nimmain-init`
+  - *Provider*: `src/nimts/memory.nim`, `src/nimts/macros.nim`, `scripts/compile_wasm.sh`
+  - *Defects Addressed*:
+    - Pass `--export=NimMain` and `--export=nimts_init` to `wasm-ld` so `--lto-O3` never strips module initialization.
+    - Implement `ensureNimTsInit()` once-guard in `memory.nim` and export `nimts_init()`.
+    - Automatically call `ensureNimTsInit()` in companion procs and invoke `_exports.NimMain()` / `_exports.nimts_init()` in `initNimTs` and `initNimTsSync`.
+  - *Verification*: Procs using dynamic method dispatch (`chckNilDisp`) initialize and execute cleanly without WASM traps.
+  - *Weave*: `vine gate && vine weave`
+
+- [ ] **Task 5.2: AudioWorklet TextEncoder/Decoder Fallback & Synchronous Loader** (`nimts-implementer`)
+  - *Strand*: `strand/task-5-2-audioworklet-hardening`
+  - *Provider*: `src/nimts/codegen.nim`, `ts/runtime.ts`, `docs/guide/audioworklet-workers.md`
+  - *Defects Addressed*:
+    - Guard `TextEncoder` and `TextDecoder` instantiation in `codegen.nim` and `ts/runtime.ts` with pure-JS UTF-8 encoder/decoder fallbacks when running in `AudioWorkletGlobalScope`.
+    - Implement `initNimTsSync(options?: NimTsOptions)` using synchronous `new WebAssembly.Instance(module, imports)` when a pre-compiled `wasmModule` or `wasmInstance` is provided for AudioWorklet constructors.
+    - Update `docs/guide/audioworklet-workers.md` to document synchronous `initNimTsSync` pattern.
+  - *Verification*: Vitest suite verifies operation with `globalThis.TextDecoder = undefined` and synchronous constructor loading.
+  - *Weave*: `vine gate && vine weave`
+
+- [ ] **Task 5.3: End-to-End AudioWorklet Verification & Two-Key Gate** (`nimts-architect`)
+  - *Strand*: `strand/task-5-3-audioworklet-tests`
+  - *Provider*: `tests/test_audioworklet.test.ts`, `tests/test_wasm_sync_and_async.test.ts`
+  - *Verification*: Full Vitest and Nimble suites pass, docs build passes, npm pack dry-run clean.
+  - *Weave*: `vine gate && vine weave`
