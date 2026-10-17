@@ -121,7 +121,7 @@ For all parallel development tracks:
   - *Verification*: `npx tsc --noEmit` on generated `.d.ts` produces 0 errors.
   - *Weave*: `vine gate && vine weave && rhizo unlock file:src/nimts/codegen.nim` [WOVEN]
 
-- [ ] **Task 4.3: Real Adversarial Verification & Green Mirage Purge** (`nimts-auditor`)
+- [x] **Task 4.3: Real Adversarial Verification & Green Mirage Purge** (`nimts-auditor`)
   - *Strand*: `strand/task-4-3-green-mirage-purge`
   - *Provider*: `tests/test_negative_controls.test.ts`, `tests/test_wasm_sync_and_async.test.ts`
   - *Defects Addressed*:
@@ -130,4 +130,4 @@ For all parallel development tracks:
     - Purge `Object.keys` tautology in `NEG-04`, replace with genuine duplicate proc name conflict test.
     - Add automated `tsc --noEmit` check in Vitest suite to guarantee all generated `.d.ts` files are valid TypeScript.
   - *Verification*: `nimble test && npm test && npm run docs:build && npm pack --dry-run` all pass 100% green with zero warnings.
-  - *Weave*: `vine gate && vine weave`
+  - *Weave*: `vine gate && vine weave` [WOVEN]
