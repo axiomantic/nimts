@@ -1,0 +1,10 @@
+node_modules/
+dist/
+nimcache/
+.nimts-cache/
+tests/fixtures/nimcache/
+tests/fixtures/*.wasm
+tests/fixtures/*.js
+tests/fixtures/*.d.ts
+*.o
+.DS_Store
