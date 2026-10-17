@@ -1,6 +1,7 @@
-# NimTS: nimpy for TypeScript & WebAssembly
+# NimTS: Seamless TypeScript & WebAssembly Bridge for Nim
 
 [![CI](https://github.com/axiomantic/nimts/actions/workflows/ci.yml/badge.svg)](https://github.com/axiomantic/nimts/actions/workflows/ci.yml)
+[![Documentation](https://img.shields.io/badge/docs-GitHub_Pages-blue.svg)](https://axiomantic.github.io/nimts/)
 [![npm version](https://img.shields.io/npm/v/nimts.svg)](https://www.npmjs.com/package/nimts)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Nimble](https://img.shields.io/badge/nimble-nimts-orange.svg)](https://nimble.directory/)
@@ -8,7 +9,9 @@
 
 **NimTS** is a zero-friction, non-invasive bridge generator connecting **Nim** to **TypeScript** and **WebAssembly (WASM)**.
 
-Just like [`nimpy`](https://github.com/yglukhov/nimpy) allows writing native Python extension modules in Nim with natural types, `nimts` allows writing high-performance WebAssembly libraries in Nim with natural Nim signatures, companion C-ABI entry points, automatic `.d.ts` declaration generation, and modern TypeScript wrappers.
+📖 **Full Documentation & Interactive Guides**: [https://axiomantic.github.io/nimts/](https://axiomantic.github.io/nimts/)
+
+NimTS enables writing high-performance WebAssembly libraries in Nim with natural Nim signatures, companion C-ABI entry points, automatic `.d.ts` declaration generation, and modern TypeScript wrappers.
 
 ---
 

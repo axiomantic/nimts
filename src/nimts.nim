@@ -1,4 +1,4 @@
-# nimts.nim - Main entry point for nimts (nimpy for TypeScript / WebAssembly)
+# nimts.nim - Main entry point for nimts (TypeScript / WebAssembly bridge for Nim)
 # Licensed under MIT License.
 
 import std/json
@@ -22,7 +22,7 @@ when isMainModule:
   const Version = "0.1.0"
 
   proc printHelp() =
-    echo "NimTS: nimpy for TypeScript & WebAssembly (v", Version, ")"
+    echo "NimTS: Seamless TypeScript & WebAssembly Bridge for Nim (v", Version, ")"
     echo ""
     echo "Usage:"
     echo "  nimts [command] [options]"
