@@ -150,14 +150,13 @@ suite "NimTsChannel SPSC Ring Buffer Verification":
     check bufPtr != nil
     check capVal == 16
 
-    when not defined(js):
-      let headVal = cast[ptr uint32](headPtr)[]
-      let tailVal = cast[ptr uint32](tailPtr)[]
-      check headVal == 2'u32
-      check tailVal == 0'u32
+    let headVal = cast[ptr uint32](headPtr)[]
+    let tailVal = cast[ptr uint32](tailPtr)[]
+    check headVal == 2'u32
+    check tailVal == 0'u32
 
-      let firstItem = cast[ptr int32](bufPtr)[]
-      check firstItem == 100'i32
+    let firstItem = cast[ptr int32](bufPtr)[]
+    check firstItem == 100'i32
 
     # Core namespaced C-ABI alias
     var headPtrCore: pointer = nil

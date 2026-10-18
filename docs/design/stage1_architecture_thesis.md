@@ -7,38 +7,33 @@
 
 ---
 
-## 1. Concurrency Topology: Lock-Free SPSC Channels (WASM) vs Native JS Fallback (`defined(js)`)
+## 1. Concurrency Topology: Lock-Free SPSC Channels for WebAssembly
 
-### 1.1 Empirical Analysis of `lockfree/bqueue.nim`
-- **SPSC Bounded Queue Topology:** In `/Users/eek/Development/lockfree/src/lockfree/bqueue.nim`, lines 230–234 define `SpscBoundedQueue*[T; N: static int] = BQueue[T, ccSingle, ccSingle, N, 0, 0]`, an array-based wait-free circular buffer with cacheline separation.
-- **Memory & Field Layout Invariants:**
+### 1.1 Empirical Analysis of SPSC Topology
+- **SPSC Bounded Queue Topology:** In `src/nimts/channels.nim`, `NimTsChannel[T]` implements an array-based wait-free circular buffer with cacheline-separated atomic indices:
   ```nim
-  # Lines 205-208 in bqueue.nim:
-  when ccProd == ccSingle and ccCons == ccSingle:
-    head* {.align: CacheLineBytes.}: Atomic[int]
-    tail* {.align: CacheLineBytes.}: Atomic[int]
-    storage*: StorageN1[N, SlotEncoding(T)]
+  type
+    NimTsChannel*[T] = ref object
+      capacity*: int
+      mask*: uint32
+      head*: Atomic[uint32]
+      tail*: Atomic[uint32]
+      closed*: Atomic[bool]
+      buffer*: seq[T]
   ```
-  The layout is verified at compile-time via static `offsetOf` assertions (lines 298–304) matching `SpscBase[8, int]`.
-- **Push / Pop Semantics:** Push (lines 510–530) and Pop (lines 573–636) execute completely wait-free via `spsc_push.start[N]()` and `spsc_pop.start[N]()`. They require only single-threaded read/write pointers and atomic acquire/release loads/stores.
-- **Backend Restriction in `lockfree/atomics.nim`:** Lines 38–47 explicitly mandate:
-  ```nim
-  when not (defined(gcc) or defined(llvm_gcc) or defined(clang) or defined(nintendoswitch) or defined(vcc)):
-    {.error: "debra/atomics requires gcc, clang...".}
-  ```
+- **Push / Pop Semantics:** Push and Pop execute completely wait-free. They require only single-threaded read/write pointers and atomic acquire/release loads/stores (`moAcquire`, `moRelease`, `moRelaxed`).
 
-### 1.2 Target Topology Split: WASM vs JS
-1. **WebAssembly Target (`defined(wasm)` / `defined(nimtsWasm)` / Clang/LLVM):**
-   - In WASM with threads enabled (`-pthread` / `atomics`), Clang compiles `Atomic[int]` directly into WebAssembly atomic memory instructions (`i32.atomic.load`, `i32.atomic.store`, `memory.atomic.wait32`, `memory.atomic.notify`).
-   - `BQueue[T, ccSingle, ccSingle, N, 0, 0]` can reside directly in linear WebAssembly memory (`SharedArrayBuffer`).
-   - Host JS (Web Worker or UI Thread) interacts directly with the buffer using JavaScript `Atomics.load(i32View, headIdx)` and `Atomics.store(i32View, tailIdx)`.
+### 1.2 WebAssembly Target Exclusivity (No Pure JS Target)
+`nimts` exclusively targets WebAssembly (standalone `wasm-ld` and Emscripten) rather than pure JavaScript (`nim js`). The core subsystems (`memory.nim` and `channels.nim`) fundamentally require raw linear memory access, raw pointers (`nimts_chan_get_raw_ptrs`), and atomic operations (`std/atomics`, `Atomic[uint32]`, `Atomic[bool]`), which cannot run on pure `nim js` runtimes lacking linear byte buffers and atomics.
+
+1. **WebAssembly Architecture (`defined(emscripten)` / `wasm32-wasip1` / Clang / `wasm-ld`):**
+   - In WASM with threads enabled (`-pthread` / `atomics`), Clang compiles `Atomic[uint32]` directly into WebAssembly atomic memory instructions (`i32.atomic.load`, `i32.atomic.store`, `memory.atomic.wait32`, `memory.atomic.notify`).
+   - `NimTsChannel[T]` resides directly in linear WebAssembly memory (`SharedArrayBuffer`).
+   - Host JS (Web Worker or UI Thread) interacts directly with the buffer using raw pointers exported via `nimts_chan_get_raw_ptrs` and JavaScript `Atomics.load` / `Atomics.store`.
    - Result: High-throughput, zero-copy, wait-free SPSC channel between JS and WASM.
-2. **Pure JavaScript Target (`when defined(js)`):**
-   - The JS backend does NOT run through Clang/LLVM; `lockfree/atomics.nim` traps with a compile-time error.
-   - JavaScript's execution model is single-threaded and run-to-completion on an event loop. A spinning lock-free loop will freeze the browser or Node.js event loop.
-   - **Architectural Decision:** Implement a clean target branch:
-     - Under `when not defined(js)`: Use `lockfree/bqueue` for wait-free linear memory queues.
-     - Under `when defined(js)`: Provide `JsSpscChannel[T]` backed by a contiguous circular ring buffer (`array[N, T]` with non-atomic modular integer indexing) and an asynchronous channel pattern where empty `pop()` returns a JS `Promise<T>` resolved when the producer calls `push(val)`.
+2. **Infeasibility of Pure JS Target (`nim js`):**
+   - The JS backend does not run through Clang/LLVM, does not support C-ABI raw memory pointer exports, and lacks `std/atomics`.
+   - Attempting to emulate linear memory in pure JS violates the zero-copy and true-fidelity architectural requirements. Therefore, pure `nim js` is explicitly excluded from the nimts compilation matrix.
 
 ---
 
@@ -198,7 +193,7 @@ We replace hard-coded imports with a zero-cost compile-time Concept & Trait Adap
 
 ## 5. Summary & Next Steps
 This architecture thesis establishes the formal foundation for Phase 2 implementation:
-- [x] Lock-free SPSC channel topology partitioned between WASM linear memory and JS event-loop fallbacks.
+- [x] Lock-free SPSC channel topology in WASM linear memory with Atomics and raw pointer extraction.
 - [x] Closure iterator lifecycle with managed handle tracking and ES2015 `IterableIterator<T>` compliance.
 - [x] Deterministic `nimts_<module>_<procName>` namespacing eliminating `wasm-ld` collisions.
 - [x] Pluggable concept-based future adapter supporting `chronos`, `asyncdispatch`, and `cps`.

@@ -8,9 +8,7 @@
 
 ## 1. Domain Glossary & Invariants
 
-- **`NimTsChannel[T]`**: Typed FIFO communication pipe between Nim and TypeScript/JavaScript.
-  - *WASM Target*: Circular SPSC (Single Producer, Single Consumer) ring-buffer residing in linear memory (`lockfree/bqueue` / `StorageN1`).
-  - *JS Target (`when defined(js)`)*: Native JavaScript microtask queue / event-loop array with cooperative asynchronous resolution.
+- **`NimTsChannel[T]`**: Typed FIFO communication pipe between Nim and TypeScript/JavaScript. Implemented as a lock-free SPSC (Single Producer, Single Consumer) circular ring-buffer residing in WebAssembly linear memory (`std/atomics`). Direct pointer extraction (`nimts_chan_get_raw_ptrs`) enables zero-copy shared memory mapping via `SharedArrayBuffer` / `Atomics`. Note: nimts exclusively targets WebAssembly (standalone wasm-ld and Emscripten) because memory.nim and channels.nim require raw linear memory pointers and atomics, which cannot run on pure nim js.
 - **`NimTsIterator[T]`**: Wrapper around Nim's 2-word fat pointer closure iterators (`iterator(): T {.closure.}`). Managed on the heap via `ClosureIterSlot[T]` and exposed through a stateful `HandleId`.
 - **Two-Point Diff**: Every new capability must be evidenced by both a Provider (Nim module / C-ABI export) and an active Consumer (live TypeScript caller / test harness).
 - **Early Loop Return Guarantee**: When consumer executes `break` or `throw` in `for await` or `for..of`, JS engine automatically invokes `.return()`, immediately calling `nimts_channel_close` or `nimts_iter_dispose`.
@@ -19,10 +17,10 @@
 
 ## 2. Empirical Findings & Constraints
 
-1. **Atomics & Target Split (`bqueue.nim:205-208`)**:
-   - `lockfree/atomics.nim` requires Clang/GCC; it fails at compile-time on `defined(js)`.
+1. **Atomics & WebAssembly Exclusivity (`channels.nim`)**:
+   - `nimts` exclusively targets WebAssembly (standalone `wasm-ld` and Emscripten). Pure JavaScript (`nim js`) is unsupported because `channels.nim` and `memory.nim` require raw linear memory pointers and `std/atomics`.
    - In single-threaded WASM (`compileOption("threads") == false`), wait-free SPSC queue works without blocking or `Atomics.wait`.
-   - In multi-threaded WASM (`--threads:on`), atomics compile to `i32.atomic.*`.
+   - In multi-threaded WASM (`--threads:on`), atomics compile to `i32.atomic.*` and map directly to `SharedArrayBuffer` / `Atomics` in JavaScript.
 2. **Buffer Detachment on `memory.grow` (`codegen.nim:187-213`)**:
    - When WASM heap grows, existing `_memory.buffer` instances in JS are detached.
    - Retaining stale `ArrayBuffer` views across asynchronous ticks produces `TypeError: Cannot perform %TypedArray%.prototype.slice on a detached ArrayBuffer`.

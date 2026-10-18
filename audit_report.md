@@ -14,7 +14,7 @@
 | **CRIT-02** | CRITICAL | Memory Safety | Closure iterators are fat pointers, not `ref object`; direct cast crashes | RESOLVED | Encapsulate in `ClosureIterSlot[T]` heap-allocated reference object |
 | **WARN-01** | WARNING | Build Stability | Global `nimts_<proc>` symbol collisions across modules in `wasm-ld` | RESOLVED | Standardize on `nimts_<module>_<proc>` namespacing |
 | **WARN-02** | WARNING | Runtime Safety | Detached ArrayBuffer exceptions on WASM `memory.grow` | RESOLVED | Dynamic view access off `_memory.buffer` on each read/write tick |
-| **WARN-03** | WARNING | Concurrency | Clang atomics fail on pure JS target (`nim js`) | RESOLVED | Conditional compilation (`when defined(js)`) with JS-native microtask queue |
+| **WARN-03** | WARNING | Concurrency | Clang atomics fail on pure JS target (`nim js`) | RESOLVED | Pure `nim js` target explicitly scoped out; nimts exclusively targets WebAssembly (`wasm-ld` and Emscripten) where `std/atomics` and raw linear memory pointers are native |
 | **INFO-01** | INFO | Usability | Inflexible hardcoded dependency on `std/asyncdispatch` | RESOLVED | Duck-typed `AnyFuture[F, T]` concept trait matrix |
 
 **Adversarial Audit Gate Status:** **PASSED (0 open critical / blocker defects)**.

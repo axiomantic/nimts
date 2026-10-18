@@ -1,13 +1,11 @@
-# nimts/channels.nim - Lock-free SPSC channel topology for WASM and native JS fallback
+# nimts/channels.nim - Lock-free SPSC channel topology for WebAssembly
 # Licensed under MIT License.
 
 import std/options
 import std/tables
+import std/atomics
 import types
 import memory
-
-when not defined(js):
-  import std/atomics
 
 const
   DefaultChannelCapacity* = 1024
@@ -16,14 +14,9 @@ type
   NimTsChannel*[T] = ref object
     capacity*: int
     mask*: uint32
-    when defined(js):
-      head*: uint32
-      tail*: uint32
-      closed*: bool
-    else:
-      head*: Atomic[uint32]
-      tail*: Atomic[uint32]
-      closed*: Atomic[bool]
+    head*: Atomic[uint32]
+    tail*: Atomic[uint32]
+    closed*: Atomic[bool]
     buffer*: seq[T]
 
   Channel*[T] = NimTsChannel[T]
@@ -40,40 +33,25 @@ proc newNimTsChannel*[T](capacity: int = DefaultChannelCapacity): NimTsChannel[T
   result.capacity = cap
   result.mask = uint32(cap - 1)
   result.buffer = newSeq[T](cap)
-  when defined(js):
-    result.head = 0
-    result.tail = 0
-    result.closed = false
-  else:
-    result.head.store(0'u32, moRelaxed)
-    result.tail.store(0'u32, moRelaxed)
-    result.closed.store(false, moRelaxed)
+  result.head.store(0'u32, moRelaxed)
+  result.tail.store(0'u32, moRelaxed)
+  result.closed.store(false, moRelaxed)
 
 proc newChannel*[T](capacity: int = DefaultChannelCapacity): Channel[T] =
   newNimTsChannel[T](capacity)
 
 proc isClosed*[T](chan: NimTsChannel[T]): bool =
   if chan.isNil: return true
-  when defined(js):
-    result = chan.closed
-  else:
-    result = chan.closed.load(moAcquire)
+  result = chan.closed.load(moAcquire)
 
 proc close*[T](chan: NimTsChannel[T]) =
   if chan.isNil: return
-  when defined(js):
-    chan.closed = true
-  else:
-    chan.closed.store(true, moRelease)
+  chan.closed.store(true, moRelease)
 
 proc len*[T](chan: NimTsChannel[T]): int =
   if chan.isNil: return 0
-  when defined(js):
-    let h = chan.head
-    let t = chan.tail
-  else:
-    let h = chan.head.load(moRelaxed)
-    let t = chan.tail.load(moRelaxed)
+  let h = chan.head.load(moRelaxed)
+  let t = chan.tail.load(moRelaxed)
   result = int(h - t)
 
 proc isFull*[T](chan: NimTsChannel[T]): bool =
@@ -89,44 +67,26 @@ proc capacity*[T](chan: NimTsChannel[T]): int =
 
 proc trySend*[T](chan: NimTsChannel[T], item: sink T): bool =
   if chan.isNil or chan.isClosed(): return false
-  when defined(js):
-    let h = chan.head
-    let t = chan.tail
-    if (h - t) >= uint32(chan.capacity):
-      return false
-    chan.buffer[h and chan.mask] = item
-    chan.head = h + 1
-    return true
-  else:
-    let h = chan.head.load(moRelaxed)
-    let t = chan.tail.load(moAcquire)
-    if (h - t) >= uint32(chan.capacity):
-      return false
-    chan.buffer[h and chan.mask] = item
-    chan.head.store(h + 1, moRelease)
-    return true
+  let h = chan.head.load(moRelaxed)
+  let t = chan.tail.load(moAcquire)
+  if (h - t) >= uint32(chan.capacity):
+    return false
+  chan.buffer[h and chan.mask] = item
+  chan.head.store(h + 1, moRelease)
+  return true
 
 proc send*[T](chan: NimTsChannel[T], item: sink T): bool =
   chan.trySend(item)
 
 proc tryRecv*[T](chan: NimTsChannel[T], outVal: var T): bool =
   if chan.isNil: return false
-  when defined(js):
-    let t = chan.tail
-    let h = chan.head
-    if t == h:
-      return false
-    outVal = move(chan.buffer[t and chan.mask])
-    chan.tail = t + 1
-    return true
-  else:
-    let t = chan.tail.load(moRelaxed)
-    let h = chan.head.load(moAcquire)
-    if t == h:
-      return false
-    outVal = move(chan.buffer[t and chan.mask])
-    chan.tail.store(t + 1, moRelease)
-    return true
+  let t = chan.tail.load(moRelaxed)
+  let h = chan.head.load(moAcquire)
+  if t == h:
+    return false
+  outVal = move(chan.buffer[t and chan.mask])
+  chan.tail.store(t + 1, moRelease)
+  return true
 
 proc recv*[T](chan: NimTsChannel[T]): Option[T] =
   var item: T
@@ -159,21 +119,18 @@ var
 proc chanGetRawPtrsHelper[T](chanPtr: pointer, headPtr: ptr pointer, tailPtr: ptr pointer, bufPtr: ptr pointer, capPtr: ptr int32): int32 {.nimcall.} =
   if chanPtr == nil: return -1
   let chan = cast[NimTsChannel[T]](chanPtr)
-  when not defined(js):
-    if headPtr != nil:
-      headPtr[] = cast[pointer](addr chan.head)
-    if tailPtr != nil:
-      tailPtr[] = cast[pointer](addr chan.tail)
-    if capPtr != nil:
-      capPtr[] = chan.capacity.int32
-    if bufPtr != nil:
-      if chan.buffer.len > 0:
-        bufPtr[] = cast[pointer](addr chan.buffer[0])
-      else:
-        bufPtr[] = nil
-    return 0
-  else:
-    return -1
+  if headPtr != nil:
+    headPtr[] = cast[pointer](addr chan.head)
+  if tailPtr != nil:
+    tailPtr[] = cast[pointer](addr chan.tail)
+  if capPtr != nil:
+    capPtr[] = chan.capacity.int32
+  if bufPtr != nil:
+    if chan.buffer.len > 0:
+      bufPtr[] = cast[pointer](addr chan.buffer[0])
+    else:
+      bufPtr[] = nil
+  return 0
 
 proc chanTryRecvHelper[T](chanPtr: pointer): uint64 {.nimcall.} =
   if chanPtr == nil: return 0'u64
