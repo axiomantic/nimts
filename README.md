@@ -24,6 +24,8 @@ NimTS enables writing high-performance WebAssembly libraries in Nim with natural
 - 🔁 **Closure Iterators & SPSC Channels**: Stream data from Nim closures as standard ES2015 `IterableIterator<T>` (`for..of`, `[...]`) and lock-free SPSC channels (`Channel[T]` / `NimTsChannel[T]`) as `AsyncIterable<T>` (`for await..of`).
 - 📦 **Vite Plugin**: Import `.nim` and `.nim?worker` files directly into your frontend code with on-the-fly compilation and hot module reloading.
 - 🎵 **AudioWorklet & Worker Ready**: Supports streaming instantiation, pre-compiled `WebAssembly.Module` sharing, and raw `BufferSource` buffers.
+- 🎮 **WebGPU Zero-Copy Storage Buffers**: Hardware-aligned 256-byte allocators (`nimts_alloc_aligned`) and `GpuBufferSlice[T]` for direct, zero-copy `device.queue.writeBuffer` transfers into WebGPU compute pipelines.
+- 🏛️ **Dual-Tier Nim Architecture (`nimts/js_client`)**: Write reactive DOM UI in `nim js` and heavy compute in `nim wasm`, communicating seamlessly with zero handwritten JS/TS glue.
 
 ---
 

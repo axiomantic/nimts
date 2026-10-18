@@ -42,7 +42,9 @@ export default defineConfig({
           { text: "Stateful Handles & GC", link: "/guide/stateful-handles" },
           { text: "Async Future ↔ Promise", link: "/guide/async-bridge" },
           { text: "Vite Integration", link: "/guide/vite-plugin" },
-          { text: "AudioWorklet & Workers", link: "/guide/audioworklet-workers" }
+          { text: "AudioWorklet & Workers", link: "/guide/audioworklet-workers" },
+          { text: "WebGPU & GPU Compute", link: "/guide/webgpu-compute" },
+          { text: "Dual-Tier Nim (JS + WASM)", link: "/guide/dual-tier-nim" }
         ]
       },
       {
