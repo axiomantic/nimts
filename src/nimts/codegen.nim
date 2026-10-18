@@ -74,8 +74,13 @@ proc mapNimTypeToTs*(nimType: string): string =
     if t.startsWith("Channel[") and t.endsWith("]"):
       let inner = t[8 .. ^2]
       return "NimTsChannel<" & mapNimTypeToTs(inner) & ">"
+    if t.startsWith("GpuBufferSlice[") and t.endsWith("]"):
+      let inner = t[15 .. ^2]
+      return "GpuBufferSlice<" & mapNimTypeToTs(inner) & ">"
     if t == "Channel" or t == "NimTsChannel":
       return "NimTsChannel<any>"
+    if t == "GpuBufferSlice":
+      return "GpuBufferSlice<any>"
     return t
 
 proc generateDts*(meta: TsModuleMeta): string =
@@ -112,6 +117,20 @@ proc generateDts*(meta: TsModuleMeta): string =
   lines.add("")
   lines.add("export type Channel<T> = NimTsChannel<T>;")
   lines.add("")
+  lines.add("export declare class GpuBufferSlice<T = any> {")
+  lines.add("  readonly pointer: number;")
+  lines.add("  readonly byteLength: number;")
+  lines.add("  readonly alignment: number;")
+  lines.add("  readonly len: number;")
+  lines.add("  constructor(pointer: number, byteLength: number, alignment: number, len?: number, runtime?: any);")
+  lines.add("  writeToGpuBuffer(device: any, targetGpuBuffer: any, offset?: number): void;")
+  lines.add("  dispose(): void;")
+  lines.add("}")
+  lines.add("")
+  lines.add("export declare function createGpuBufferSlice<T = any>(byteLength: number, alignment?: number, len?: number): GpuBufferSlice<T>;")
+  lines.add("export declare function nimts_alloc_aligned(size: number, alignment: number): number;")
+  lines.add("export declare function nimts_free_aligned(ptr: number): void;")
+  lines.add("")
 
   # Emit handle classes or interfaces
   for typ in meta.types:
@@ -144,6 +163,8 @@ proc generateDts*(meta: TsModuleMeta): string =
     if not seenInterfaceSigs.contains(sigKey):
       seenInterfaceSigs.incl(sigKey)
       lines.add("  " & p.name & "(" & paramSigs & "): " & retSig & ";")
+  lines.add("  nimts_alloc_aligned?(size: number, alignment: number): number;")
+  lines.add("  nimts_free_aligned?(ptr: number): void;")
   lines.add("}")
   lines.add("")
 
@@ -670,6 +691,57 @@ proc generateJs*(meta: TsModuleMeta, relativeWasmPath: string = ""): string =
   lines.add("")
   lines.add("export const Channel = NimTsChannel;")
   lines.add("")
+  lines.add("export class GpuBufferSlice {")
+  lines.add("  #pointer = 0;")
+  lines.add("  #byteLength = 0;")
+  lines.add("  #alignment = 0;")
+  lines.add("  #len = 0;")
+  lines.add("  #runtime = null;")
+  lines.add("  constructor(pointer, byteLength, alignment, len = 0, runtime = null) {")
+  lines.add("    this.#pointer = pointer;")
+  lines.add("    this.#byteLength = byteLength;")
+  lines.add("    this.#alignment = alignment;")
+  lines.add("    this.#len = len || (byteLength > 0 ? byteLength : 0);")
+  lines.add("    this.#runtime = runtime;")
+  lines.add("  }")
+  lines.add("  get pointer() { return this.#pointer; }")
+  lines.add("  get byteLength() { return this.#byteLength; }")
+  lines.add("  get alignment() { return this.#alignment; }")
+  lines.add("  get len() { return this.#len; }")
+  lines.add("  writeToGpuBuffer(device, targetGpuBuffer, offset = 0) {")
+  lines.add("    if (!device) throw new Error(\"WebGPU device is required\");")
+  lines.add("    const queue = device.queue || device;")
+  lines.add("    if (typeof queue.writeBuffer !== 'function') {")
+  lines.add("      throw new Error(\"WebGPU device or queue does not support writeBuffer\");")
+  lines.add("    }")
+  lines.add("    const buf = _getBuffer();")
+  lines.add("    const view = new Uint8Array(buf, this.#pointer, this.#byteLength);")
+  lines.add("    queue.writeBuffer(targetGpuBuffer, offset, view.buffer, view.byteOffset, view.byteLength);")
+  lines.add("  }")
+  lines.add("  dispose() {")
+  lines.add("    if (this.#pointer !== 0) {")
+  lines.add("      nimts_free_aligned(this.#pointer);")
+  lines.add("      this.#pointer = 0;")
+  lines.add("    }")
+  lines.add("  }")
+  lines.add("}")
+  lines.add("")
+  lines.add("export function nimts_alloc_aligned(size, alignment) {")
+  lines.add("  _assertInit();")
+  lines.add("  return _exports.nimts_alloc_aligned ? _exports.nimts_alloc_aligned(size, alignment) : _exports.nimts_alloc(size);")
+  lines.add("}")
+  lines.add("")
+  lines.add("export function nimts_free_aligned(ptr) {")
+  lines.add("  _assertInit();")
+  lines.add("  if (_exports.nimts_free_aligned) _exports.nimts_free_aligned(ptr);")
+  lines.add("  else if (_exports.nimts_free) _exports.nimts_free(ptr);")
+  lines.add("}")
+  lines.add("")
+  lines.add("export function createGpuBufferSlice(byteLength, alignment = 256, len = 0) {")
+  lines.add("  const ptr = nimts_alloc_aligned(byteLength, alignment);")
+  lines.add("  return new GpuBufferSlice(ptr, byteLength, alignment, len);")
+  lines.add("}")
+  lines.add("")
 
   # Emit procs with overload grouping and dispatching
   var procsByName = initOrderedTable[string, seq[TsProc]]()
@@ -744,6 +816,10 @@ proc generateJs*(meta: TsModuleMeta, relativeWasmPath: string = ""): string =
   lines.add("  NimTsIterator,")
   lines.add("  NimTsChannel,")
   lines.add("  Channel: NimTsChannel,")
+  lines.add("  GpuBufferSlice,")
+  lines.add("  createGpuBufferSlice,")
+  lines.add("  nimts_alloc_aligned,")
+  lines.add("  nimts_free_aligned,")
   for name in procsByName.keys:
     lines.add("  " & name & ",")
   lines.add("};")

@@ -208,3 +208,59 @@ suite "NimTS Memory and Handle Management":
     nimts_free(gLastResultPtr)
     nimts_clear_error()
     check nimts_has_error() == 0
+
+  test "nimts_alloc_aligned and nimts_free_aligned with 256-byte, 64-byte, and 4-byte alignments":
+    # 256-byte WebGPU uniform buffer alignment
+    let p256 = nimts_alloc_aligned(1024, 256)
+    check p256 != nil
+    check (cast[uint](p256) and 255'u) == 0'u
+
+    # Write and read back to verify memory integrity
+    let intArr = cast[ptr UncheckedArray[int32]](p256)
+    for i in 0 ..< 256:
+      intArr[i] = int32(i * 10)
+    for i in 0 ..< 256:
+      check intArr[i] == int32(i * 10)
+
+    nimts_free_aligned(p256)
+
+    # 64-byte cache line alignment
+    let p64 = nimts_alloc_aligned(512, 64)
+    check p64 != nil
+    check (cast[uint](p64) and 63'u) == 0'u
+    nimts_free_aligned(p64)
+
+    # 4-byte storage buffer alignment
+    let p4 = nimts_alloc_aligned(128, 4)
+    check p4 != nil
+    check (cast[uint](p4) and 3'u) == 0'u
+    nimts_free_aligned(p4)
+
+    # Edge cases: 0 or negative size, negative or non-power-of-two alignment
+    check nimts_alloc_aligned(0, 256) == nil
+    check nimts_alloc_aligned(-10, 256) == nil
+    check nimts_alloc_aligned(64, 0) == nil
+    check nimts_alloc_aligned(64, -256) == nil
+    check nimts_alloc_aligned(64, 7) == nil    # 7 is not power of two
+    check nimts_alloc_aligned(64, 300) == nil  # 300 is not power of two
+
+    # Safe freeing of nil
+    nimts_free_aligned(nil)
+
+  test "GpuBufferSlice[T] typed wrapper and lifecycle":
+    var slice = newGpuBufferSlice[float32](64, 256)
+    check slice.data != nil
+    check slice.len == 64
+    check slice.byteLength == 64 * sizeof(float32).int32
+    check slice.alignment == 256
+    check (cast[uint](slice.data) and 255'u) == 0'u
+
+    for i in 0 ..< 64:
+      slice.data[i] = float32(i) * 1.5'f32
+    for i in 0 ..< 64:
+      check slice.data[i] == float32(i) * 1.5'f32
+
+    slice.free()
+    check slice.data == nil
+    check slice.len == 0
+    check slice.byteLength == 0

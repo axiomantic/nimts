@@ -9,12 +9,58 @@ export interface NimTsExports {
   memory: WebAssembly.Memory;
   nimts_alloc(size: number): number;
   nimts_free(ptr: number): void;
+  nimts_alloc_aligned?(size: number, alignment: number): number;
+  nimts_free_aligned?(ptr: number): void;
   nimts_get_last_result_ptr(): number;
   nimts_get_last_result_len(): number;
   nimts_destroy_handle?(handleId: number): void;
   nimts_active_handle_count?(): number;
   nimts_resume_future?(futureId: number, dataPtr: number, dataLen: number, isError: number): void;
   [key: string]: any;
+}
+
+export class GpuBufferSlice<T = any> {
+  readonly pointer: number;
+  readonly byteLength: number;
+  readonly alignment: number;
+  readonly len: number;
+  private _runtime: any;
+
+  constructor(pointer: number, byteLength: number, alignment: number, len: number = 0, runtime?: any) {
+    this.pointer = pointer;
+    this.byteLength = byteLength;
+    this.alignment = alignment;
+    this.len = len || (byteLength > 0 ? byteLength : 0);
+    this._runtime = runtime;
+  }
+
+  writeToGpuBuffer(device: any, targetGpuBuffer: any, offset = 0): void {
+    if (!device) throw new Error('WebGPU device is required');
+    const queue = device.queue || device;
+    if (typeof queue.writeBuffer !== 'function') {
+      throw new Error('WebGPU device or queue does not support writeBuffer');
+    }
+    let buffer: ArrayBuffer | null = null;
+    if (typeof this._runtime === 'function') {
+      const res = this._runtime();
+      buffer = res?.buffer || res;
+    } else if (this._runtime && typeof this._runtime.getMemory === 'function') {
+      buffer = this._runtime.getMemory().buffer;
+    } else if (this._runtime && this._runtime.buffer instanceof ArrayBuffer) {
+      buffer = this._runtime.buffer;
+    }
+    if (!buffer) {
+      throw new Error('Cannot access WebAssembly memory buffer for GpuBufferSlice');
+    }
+    const view = new Uint8Array(buffer, this.pointer, this.byteLength);
+    queue.writeBuffer(targetGpuBuffer, offset, view.buffer, view.byteOffset, view.byteLength);
+  }
+
+  dispose(): void {
+    if (this._runtime && typeof this._runtime.freeAligned === 'function' && this.pointer) {
+      this._runtime.freeAligned(this.pointer);
+    }
+  }
 }
 
 export interface NimTsIterator<T> extends IterableIterator<T> {
@@ -136,6 +182,29 @@ export class NimTsRuntime {
     if (this.exports && ptr) {
       this.exports.nimts_free(ptr);
     }
+  }
+
+  public allocAligned(size: number, alignment: number): number {
+    if (!this.exports) throw new Error('nimts module not initialized.');
+    if (typeof this.exports.nimts_alloc_aligned === 'function') {
+      return this.exports.nimts_alloc_aligned(size, alignment);
+    }
+    return this.exports.nimts_alloc(size);
+  }
+
+  public freeAligned(ptr: number): void {
+    if (this.exports && ptr) {
+      if (typeof this.exports.nimts_free_aligned === 'function') {
+        this.exports.nimts_free_aligned(ptr);
+      } else {
+        this.exports.nimts_free(ptr);
+      }
+    }
+  }
+
+  public createGpuBufferSlice<T = any>(byteLength: number, alignment: number = 256, len: number = 0): GpuBufferSlice<T> {
+    const ptr = this.allocAligned(byteLength, alignment);
+    return new GpuBufferSlice<T>(ptr, byteLength, alignment, len, this);
   }
 
   public destroyHandle(handleId: number): void {

@@ -23,6 +23,12 @@ type
   NimTsError* = object of CatchableError
     code*: int32
 
+  GpuBufferSlice*[T] = object
+    data*: ptr UncheckedArray[T]
+    len*: int32
+    byteLength*: int32
+    alignment*: int32
+
 proc `==`*[T](a, b: NimTsHandle[T]): bool = a.HandleId == b.HandleId
 proc `$`*[T](h: NimTsHandle[T]): string = "NimTsHandle[" & $typeof(T) & "](" & $h.HandleId & ")"
 

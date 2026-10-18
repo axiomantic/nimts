@@ -40,6 +40,51 @@ proc nimts_free*(p: pointer) {.exportc: "nimts_free", cdecl.} =
   if p != nil:
     dealloc(p)
 
+proc nimts_alloc_aligned*(size: int32, alignment: int32): pointer {.exportc: "nimts_alloc_aligned", cdecl.} =
+  if size <= 0 or alignment <= 0: return nil
+  if (alignment and (alignment - 1)) != 0: return nil # Power of two required
+
+  var align = alignment
+  if align < sizeof(pointer).int32:
+    align = sizeof(pointer).int32
+
+  # Allocate space for user data + alignment padding + base pointer storage
+  let totalSize = size + align + sizeof(pointer).int32
+  let raw = alloc0(totalSize)
+  if raw == nil: return nil
+
+  let rawInt = cast[uint](raw)
+  let alignedInt = (rawInt + cast[uint](sizeof(pointer)) + cast[uint](align - 1)) and not cast[uint](align - 1)
+  let prefixPtr = cast[ptr pointer](alignedInt - cast[uint](sizeof(pointer)))
+  prefixPtr[] = raw
+  result = cast[pointer](alignedInt)
+
+proc nimts_free_aligned*(p: pointer) {.exportc: "nimts_free_aligned", cdecl.} =
+  if p == nil: return
+  let prefixPtr = cast[ptr pointer](cast[uint](p) - cast[uint](sizeof(pointer)))
+  let raw = prefixPtr[]
+  if raw != nil:
+    dealloc(raw)
+
+proc newGpuBufferSlice*[T](len: int32, alignment: int32 = 256): GpuBufferSlice[T] =
+  if len <= 0:
+    return GpuBufferSlice[T](data: nil, len: 0, byteLength: 0, alignment: alignment)
+  let byteLen = len * sizeof(T).int32
+  let p = nimts_alloc_aligned(byteLen, alignment)
+  result = GpuBufferSlice[T](
+    data: cast[ptr UncheckedArray[T]](p),
+    len: len,
+    byteLength: byteLen,
+    alignment: alignment
+  )
+
+proc free*[T](slice: var GpuBufferSlice[T]) =
+  if slice.data != nil:
+    nimts_free_aligned(cast[pointer](slice.data))
+    slice.data = nil
+    slice.len = 0
+    slice.byteLength = 0
+
 proc nimts_get_last_result_ptr*(): pointer {.exportc: "nimts_get_last_result_ptr", cdecl.} =
   gLastResultPtr
 

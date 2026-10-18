@@ -1,10 +1,10 @@
 // tests/test_runtime.test.ts - Unit tests for NimTsRuntime TypeScript core
 // Licensed under MIT License.
 
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll, vi } from 'vitest';
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
-import { NimTsRuntime } from '../ts/runtime.js';
+import { NimTsRuntime, GpuBufferSlice } from '../ts/runtime.js';
 
 const WASM_FILE = path.resolve(__dirname, 'fixtures/test_module.wasm');
 
@@ -146,6 +146,63 @@ describe('NimTsRuntime Unit Tests', () => {
 
       expect(addNumbers(40, 2)).toBe(42);
       expect(greet('AudioWorklet')).toBe('Hello, AudioWorklet!');
+    });
+  });
+
+  describe('WebGPU Aligned Allocator & GpuBufferSlice', () => {
+    it('allocates aligned memory and creates GpuBufferSlice with power-of-two alignments', async () => {
+      const runtime = new NimTsRuntime();
+      await runtime.init(wasmBytes);
+
+      // WebGPU uniform buffer alignment: 256 bytes
+      const slice256 = runtime.createGpuBufferSlice(1024, 256, 256);
+      expect(slice256).toBeInstanceOf(GpuBufferSlice);
+      expect(slice256.pointer).toBeGreaterThan(0);
+      expect(slice256.pointer % 256).toBe(0);
+      expect(slice256.byteLength).toBe(1024);
+      expect(slice256.alignment).toBe(256);
+      expect(slice256.len).toBe(256);
+
+      // WebGPU storage buffer alignment: 4 bytes
+      const slice4 = runtime.createGpuBufferSlice(64, 4, 16);
+      expect(slice4.pointer).toBeGreaterThan(0);
+      expect(slice4.pointer % 4).toBe(0);
+      expect(slice4.byteLength).toBe(64);
+
+      slice256.dispose();
+      slice4.dispose();
+    });
+
+    it('GpuBufferSlice.writeToGpuBuffer invokes queue.writeBuffer zero-copy', async () => {
+      const runtime = new NimTsRuntime();
+      await runtime.init(wasmBytes);
+
+      const slice = runtime.createGpuBufferSlice(128, 256, 32);
+      const mockWriteBuffer = vi.fn();
+      const mockDevice = {
+        queue: {
+          writeBuffer: mockWriteBuffer
+        }
+      };
+      const mockGpuBuffer = { label: 'uniformBuffer' };
+
+      slice.writeToGpuBuffer(mockDevice, mockGpuBuffer, 0);
+
+      expect(mockWriteBuffer).toHaveBeenCalledTimes(1);
+      const [targetBuf, offset, srcBuffer, srcOffset, byteLength] = mockWriteBuffer.mock.calls[0];
+      expect(targetBuf).toBe(mockGpuBuffer);
+      expect(offset).toBe(0);
+      expect(srcBuffer).toBeInstanceOf(ArrayBuffer);
+      expect(srcOffset).toBe(slice.pointer);
+      expect(byteLength).toBe(slice.byteLength);
+
+      slice.dispose();
+    });
+
+    it('GpuBufferSlice throws when device or queue is invalid', async () => {
+      const slice = new GpuBufferSlice(100, 64, 256);
+      expect(() => slice.writeToGpuBuffer(null, {})).toThrow(/WebGPU device is required/);
+      expect(() => slice.writeToGpuBuffer({}, {})).toThrow(/does not support writeBuffer/);
     });
   });
 });
