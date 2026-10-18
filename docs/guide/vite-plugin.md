@@ -38,6 +38,23 @@ await initNimTs();
 console.log(greet("Browser"));
 ```
 
+### Worker Imports with `?worker`
+
+You can also import any Nim module directly as a Web Worker using Vite's `?worker` query parameter:
+
+```typescript
+// src/main.ts
+import EngineWorker from './dsp/engine.nim?worker';
+
+// Instantiate the worker client
+const worker = await new EngineWorker();
+// or: const worker = await EngineWorker.spawn();
+
+// All calls are proxied asynchronously to the worker thread
+const sum = await worker.addNumbers(10, 20);
+console.log('Result from worker:', sum);
+```
+
 ---
 
 ## Plugin Options

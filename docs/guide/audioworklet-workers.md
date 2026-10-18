@@ -74,3 +74,48 @@ registerProcessor('dsp-processor', NimDspProcessor);
 ```
 
 Because `initNimTsSync` accepts `wasmModule: WebAssembly.Module`, the AudioWorklet initializes synchronously without network calls, microtask scheduling races, or buffer compilation delays.
+
+---
+
+## Web Worker Runtime (`@axiomantic/nimts/worker`)
+
+For CPU-bound tasks, heavy algorithms, or background data crunching, NimTS provides a full **Web Worker client runtime** (`@axiomantic/nimts/worker`) compatible with both browser Web Workers and `node:worker_threads`.
+
+### Features
+- **Typed Transparent Proxy**: All exported Nim functions are exposed as asynchronous methods returning `Promise<T>`.
+- **Async/Await Resolution**: Automatically resolves Nim `Future[T]` in the worker and settles the caller's Promise.
+- **Zero-Copy Buffer Transfers**: Automatically detects `ArrayBuffer` and `TypedArray` views in arguments/results and includes them in the `postMessage` transfer list, detaching the sender buffer for true zero-copy performance.
+- **Channel Streaming**: Supports continuous streaming over `MessagePort` so you can consume `NimTsChannel[T]` via `for await (const chunk of worker.streamWords())` or directly `await` the aggregated array.
+- **Clean Termination**: Explicit `worker.terminate()` immediately releases worker threads and rejects in-flight calls.
+
+### Example: Spawning a Worker
+
+```typescript
+import { spawnWorker } from '@axiomantic/nimts/worker';
+
+// Spawn worker pointing to your compiled module
+const worker = await spawnWorker('./engine.js', {
+  wasmPath: '/wasm/engine.wasm'
+});
+
+// 1. Primitive RPC
+const sum = await worker.addNumbers(15, 27);
+console.log('Sum:', sum); // 42
+
+// 2. Zero-Copy Buffer Transfer
+const audioBuffer = new Uint8Array([10, 20, 30, 40]);
+const processed = await worker.checksumBytes(audioBuffer);
+// audioBuffer.byteLength is now 0 (detached and transferred zero-copy)
+
+// 3. Off-Thread Async Future[T]
+const asyncResult = await worker.asyncAdd(100, 250);
+console.log('Async Add:', asyncResult); // 350
+
+// 4. Channel Streaming via for-await
+for await (const word of worker.streamWords(['nim', 'wasm', 'worker'])) {
+  console.log('Stream chunk:', word);
+}
+
+// 5. Terminate when done
+await worker.terminate();
+```

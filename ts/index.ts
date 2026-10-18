@@ -3,3 +3,4 @@
 
 export * from './runtime.js';
 export * from './vite-plugin-nimts.js';
+export * from './worker.js';

@@ -50,6 +50,17 @@ describe('Vite Plugin (vite-plugin-nimts)', () => {
       const res = await resolve.call({}, absPath, '/mock/project/src/main.ts');
       expect(res).toBe(absPath);
     });
+
+    it('resolves .nim?worker query to path?worker', async () => {
+      const plugin = nimtsPlugin();
+      if (typeof plugin.configResolved === 'function') {
+        (plugin.configResolved as any)({ root: '/mock/project' });
+      }
+
+      const resolve = plugin.resolveId as Function;
+      const res = await resolve.call({}, './engine.nim?worker', '/mock/project/src/main.ts');
+      expect(res).toBe(path.resolve('/mock/project/src', 'engine.nim') + '?worker');
+    });
   });
 
   describe('handleHotUpdate hook', () => {
@@ -116,6 +127,25 @@ describe('Vite Plugin (vite-plugin-nimts)', () => {
       expect(res.code).toContain('addNumbers');
       expect(res.code).toContain('createEngine');
     }, 30000);
+
+    it('emits instantiable NimWorker class when id contains ?worker', async () => {
+      const plugin = nimtsPlugin({
+        clangBin: process.env.CLANG_BIN || '/opt/homebrew/opt/llvm/bin/clang',
+        wasmldBin: process.env.WASM_LD_BIN || '/opt/homebrew/bin/wasm-ld',
+        sysroot: process.env.WASI_SYSROOT || '/opt/homebrew/share/wasi-sysroot'
+      });
+      if (typeof plugin.configResolved === 'function') {
+        (plugin.configResolved as any)({ root: path.resolve(__dirname, '..') });
+      }
+      const load = plugin.load as Function;
+      const fixturePath = path.resolve(__dirname, 'fixtures/test_module.nim') + '?worker';
+      const res = await load.call({}, fixturePath);
+
+      expect(res).toBeDefined();
+      expect(res.code).toContain('spawnWorker');
+      expect(res.code).toContain('class NimWorker');
+      expect(res.code).toContain('export function spawn');
+    });
 
     it('throws actionable diagnostic error when backend: emscripten is selected but emcc is missing', async () => {
       const plugin = nimtsPlugin({

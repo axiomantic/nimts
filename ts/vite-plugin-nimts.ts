@@ -45,19 +45,23 @@ export function nimtsPlugin(options: NimTsPluginOptions = {}): Plugin {
     },
 
     async resolveId(source, importer) {
-      if (source.endsWith('.nim')) {
-        const resolution = path.isAbsolute(source)
-          ? source
-          : path.resolve(importer ? path.dirname(importer) : config.root, source);
-        return resolution;
+      const isWorker = source.endsWith('.nim?worker') || source.includes('.nim?worker');
+      const cleanSource = source.replace(/\?.*$/, '');
+      if (cleanSource.endsWith('.nim')) {
+        const resolution = path.isAbsolute(cleanSource)
+          ? cleanSource
+          : path.resolve(importer ? path.dirname(importer) : config.root, cleanSource);
+        return isWorker ? `${resolution}?worker` : resolution;
       }
       return null;
     },
 
     async load(id) {
-      if (!id.endsWith('.nim')) return null;
+      const isWorker = id.endsWith('.nim?worker') || id.includes('.nim?worker');
+      const cleanId = id.replace(/\?.*$/, '');
+      if (!cleanId.endsWith('.nim')) return null;
 
-      const nimFilePath = id;
+      const nimFilePath = cleanId;
       const fileDir = path.dirname(nimFilePath);
       const baseName = path.basename(nimFilePath, '.nim');
       const cacheDir = path.resolve(config.root || '.', '.nimts-cache', `${baseName}-${backend}`);
@@ -272,6 +276,38 @@ export { runtime };
 `;
           }
         }
+      }
+
+      if (isWorker) {
+        const workerGlue = `
+import { spawnWorker } from '@axiomantic/nimts/worker';
+
+export default class NimWorker {
+  static spawn(options = {}) {
+    return spawnWorker(new URL('./${baseName}.js', import.meta.url), {
+      wasmPath: new URL('/wasm/${baseName}.wasm', import.meta.url).href,
+      ...options
+    });
+  }
+  constructor(options = {}) {
+    return spawnWorker(new URL('./${baseName}.js', import.meta.url), {
+      wasmPath: new URL('/wasm/${baseName}.wasm', import.meta.url).href,
+      ...options
+    });
+  }
+}
+
+export function spawn(options = {}) {
+  return spawnWorker(new URL('./${baseName}.js', import.meta.url), {
+    wasmPath: new URL('/wasm/${baseName}.wasm', import.meta.url).href,
+    ...options
+  });
+}
+`;
+        return {
+          code: workerGlue,
+          map: null
+        };
       }
 
       return {
