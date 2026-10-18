@@ -7,50 +7,60 @@
 [![Nimble](https://img.shields.io/badge/nimble-nimts-orange.svg)](https://nimble.directory/)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/axiomantic/nimts/pulls)
 
-**NimTS** is a zero-friction bridge generator connecting **Nim** to **TypeScript** and **WebAssembly (WASM)**.
+**NimTS** is a zero-friction bridge connecting **Nim** to **TypeScript** and **WebAssembly (WASM)**.
+
+Write high-performance WebAssembly in Nim with natural signatures, companion C-ABI entry points, automatic `.d.ts` declaration generation, and modern TypeScript wrappers.
 
 📖 **Full Documentation & Interactive Guides**: [https://axiomantic.github.io/nimts/](https://axiomantic.github.io/nimts/)
-
-NimTS enables writing high-performance WebAssembly libraries in Nim with natural Nim signatures, companion C-ABI entry points, automatic `.d.ts` declaration generation, and modern TypeScript wrappers.
 
 ---
 
 ## Key Highlights
 
-- ⚡ **Zero-Overhead `{.exportts.}`**: Preserves native Nim signatures and behavior. Procs remain 100% callable by native Nim CLI tools, VST/CLAP audio plugins, and native unit tests with zero overhead.
+- ⚡ **Zero-Overhead `{.exportts.}`**: Preserves native Nim signatures. Procs remain 100% callable by native Nim CLI tools, VST/CLAP audio plugins, and native unit tests with zero overhead.
 - 🧵 **Multi-Threaded Web Worker Runtime (`@axiomantic/nimts/worker`)**: Run CPU/DSP algorithms in dedicated background threads via `spawnWorker` or Vite's `?worker` query. Transparent typed async proxying, automatic `Future[T]` awaiting, and true zero-copy `ArrayBuffer` detachment via Transferable objects.
 - 🔄 **Bidirectional Async Bridge**: Automatically bridges Nim `Future[T]` and JavaScript `Promise<T>` without blocking the main browser thread.
 - 🎛️ **Stateful Handles with GC**: Exports `ref object` instances as type-safe opaque handles with automatic garbage collection via JavaScript's `FinalizationRegistry` and deterministic manual `.dispose()`.
-- 🔁 **Closure Iterators & SPSC Channels**: Stream data from Nim closures as standard ES2015 `IterableIterator<T>` (`for..of`, `[...]`) and lock-free SPSC channels (`Channel[T]` / `NimTsChannel[T]`) as `AsyncIterable<T>` (`for await..of`).
-- 📦 **Vite Plugin**: Import `.nim` and `.nim?worker` files directly into your frontend code with on-the-fly compilation and hot module reloading.
-- 🎵 **AudioWorklet & Worker Ready**: Supports streaming instantiation, pre-compiled `WebAssembly.Module` sharing, and raw `BufferSource` buffers.
+- 🔁 **Closure Iterators & SPSC Channels**: Stream data from Nim closures as standard ES2015 `IterableIterator<T>` (`for..of`) and lock-free SPSC channels (`Channel[T]`) as `AsyncIterable<T>` (`for await..of`).
+- 📦 **Vite Plugin**: Import `.nim` and `.nim?worker` files directly into your frontend code with background compilation and hot module reloading.
 - 🎮 **WebGPU Zero-Copy Storage Buffers**: Hardware-aligned 256-byte allocators (`nimts_alloc_aligned`) and `GpuBufferSlice[T]` for direct, zero-copy `device.queue.writeBuffer` transfers into WebGPU compute pipelines.
 - 🏛️ **Dual-Tier Nim Architecture (`nimts/js_client`)**: Write reactive DOM UI in `nim js` and heavy compute in `nim wasm`, communicating seamlessly with zero handwritten JS/TS glue.
 
 ---
 
+## Prerequisites
+
+1. **Nim** (version 2.0.0 or later, tested with 2.2+)
+2. **Node.js** (version 20.x or later) and **npm**
+3. **LLVM & WebAssembly Toolchain**:
+   - **macOS**: `brew install llvm wasi-sysroot`
+   - **Ubuntu/Debian**: `sudo apt-get install clang lld llvm` + `wasi-sysroot` (or Emscripten SDK `emsdk`)
+
+---
+
 ## Installation
 
-### In your Nim project (Nimble)
+### In Your Nim Project (Nimble)
 ```bash
 nimble install nimts
 ```
 
-### In your TypeScript / Vite project (npm)
+### In Your TypeScript / Frontend Project (npm)
 ```bash
 npm install @axiomantic/nimts
 ```
 
-> **Note**: For full-stack applications (e.g. Vite + React/Vue with `.nim` source files), install **both**: Nimble provides the compiler tools & macros, while npm provides the Vite plugin (`@axiomantic/nimts/vite`) and runtime (`@axiomantic/nimts/runtime`).
-
+> **Which do you need?**
+> - **Vite / Full-Stack App (Most Common)**: Install **both**. Nimble provides the compiler tools & macros; npm provides the Vite plugin (`@axiomantic/nimts/vite`) and runtime (`@axiomantic/nimts/runtime`).
+> - **Pure TypeScript Consumer**: Only `npm install <published-nimts-package>`.
 
 ---
 
 ## Quickstart: Vite Integration (Recommended)
 
-The fastest and cleanest way to use NimTS is via the official Vite plugin. You can import `.nim` files directly into your frontend or Web Worker code—compilation, type generation, and hot module reloading happen automatically.
+The fastest and most modern way to build with NimTS is using the official Vite plugin. Import your `.nim` modules directly into frontend code—Vite handles WASM compilation, type generation, and HMR automatically.
 
-### 1. Configure Vite (`vite.config.ts`)
+### Step 1: Configure Vite (`vite.config.ts`)
 
 ```typescript
 // vite.config.ts
@@ -64,10 +74,10 @@ export default defineConfig({
 });
 ```
 
-### 2. Write your Nim module (`src/engine.nim`)
+### Step 2: Write Your Nim Module (`src/synth.nim`)
 
 ```nim
-# src/engine.nim
+# src/synth.nim
 import std/asyncdispatch
 import nimts
 
@@ -76,23 +86,19 @@ type
     sampleRate*: float32
     volume*: float32
 
-  SynthPatch* = object
-    name*: string
-    polyphony*: int32
-
-# 1. Primitives: passed & returned directly
+# 1. Primitives: passed & returned directly via WASM registers
 proc addNumbers*(a: int32, b: int32): int32 {.exportts.} =
   a + b
 
 # 2. Strings: UTF-8 marshaled automatically
 proc greet*(name: string): string {.exportts.} =
-  "Hello, " & name & " from Nim!"
+  "Hello, " & name & " from NimTS!"
 
 # 3. Binary buffers: maps directly to Uint8Array
-proc processData*(data: openArray[byte]): seq[byte] {.exportts.} =
+proc processBuffer*(data: openArray[byte]): seq[byte] {.exportts.} =
   result = newSeq[byte](data.len)
   for i in 0 ..< data.len:
-    result[i] = data[i] xor 0xFF'u8
+    result[i] = data[i] xor 0xAA'u8
 
 # 4. Stateful handles for ref object instances
 proc createEngine*(sampleRate: float32): AudioEngine {.exportts.} =
@@ -102,162 +108,124 @@ proc setVolume*(engine: AudioEngine, vol: float32) {.exportts.} =
   if engine != nil:
     engine.volume = vol
 
-# 5. Non-blocking async Future[T] -> JS Promise<T>
+# 5. Non-blocking async coroutine: Future[T] -> JS Promise<T>
 proc computeAsync*(x: int32): Future[int32] {.async, exportts.} =
   return x * 42
-
-# 6. Idiomatic Channel[T] streaming -> AsyncIterable<T>
-proc streamEvents*(count: int32): Channel[string] {.exportts.} =
-  let ch = newChannel[string](32)
-  for i in 1 .. count:
-    discard ch.send("Event " & $i)
-  return ch
 ```
 
-### 3. Consume in your frontend (`src/main.ts`)
+### Step 3: Consume in Frontend Code (`src/main.ts`)
 
-#### Pattern A: Direct In-Thread WASM Execution
+NimTS supports both direct in-thread execution and off-thread Web Worker execution:
 
 ```typescript
 // src/main.ts
+// Pattern 1: Direct in-thread import (Synchronous, instant, zero overhead)
 import {
   initNimTs,
   addNumbers,
   greet,
-  processData,
+  processBuffer,
   createEngine,
-  setVolume,
-  computeAsync,
-  streamEvents
-} from './engine.nim';
+  setVolume
+} from './synth.nim';
 
-// Initialize the WebAssembly module
+// Pattern 2: Off-thread Web Worker import (Dedicated background thread)
+import SynthWorker from './synth.nim?worker';
+
+// --- 1. Direct In-Thread Execution ---
+// Best for: Quick operations (< 1ms), instant math, canvas/WebGL loops.
 await initNimTs();
 
-// Call synchronous functions
-console.log(addNumbers(10, 32)); // 42
-console.log(greet("TypeScript")); // "Hello, TypeScript from Nim!"
+console.log('Direct sync result:', addNumbers(17, 25)); // 42
+console.log(greet("TypeScript")); // "Hello, TypeScript from NimTS!"
 
-// Process binary buffers
-const input = new Uint8Array([0x00, 0xAA, 0xFF]);
-const output = processData(input); // Uint8Array [ 255, 85, 0 ]
+const input = new Uint8Array([0x01, 0x02, 0x03]);
+const output = processBuffer(input); // Uint8Array [ 171, 168, 169 ]
 
-// Stateful instances with handles
 const engine = createEngine(48000.0);
-setVolume(engine, 0.8);
-engine.dispose(); // Explicit release, or automatic GC via FinalizationRegistry
+setVolume(engine, 0.707);
+engine.dispose(); // Explicit cleanup, or automatic GC via FinalizationRegistry
 
-// Async Future[T] seamlessly awaited as Promise<T>
-const result = await computeAsync(10); // 420
+// --- 2. Off-Thread Web Worker Execution ---
+// Best for: Heavy algorithms, physics simulations, DSP, ONNX/ML inference.
+// Keeps the main UI thread running at 60/120 FPS without dropped frames.
+const worker = await SynthWorker.spawn();
 
-// Stream from Channel[T] via native for-await
-for await (const event of streamEvents(3)) {
-  console.log(event); // "Event 1", "Event 2", "Event 3"
-}
-```
+// Calls the exact same Nim function off-thread; returns a Promise
+const workerSum = await worker.addNumbers(17, 25);
+console.log('Worker async result:', workerSum); // 42
 
-#### Pattern B: Off-Thread Web Worker with Zero-Copy Transfers (`@axiomantic/nimts/worker`)
-
-For heavy DSP, physics simulations, or background data crunching, run entirely off the UI thread:
-
-```typescript
-// Import directly as a Web Worker using Vite's ?worker query
-import EngineWorker from './engine.nim?worker';
-
-// Or spawn manually:
-// import { spawnWorker } from '@axiomantic/nimts/worker';
-// const worker = await spawnWorker('./engine.js');
-
-const worker = await new EngineWorker();
-
-// 1. Transparent async RPC proxy
-const sum = await worker.addNumbers(10, 32); // 42
-const asyncRes = await worker.computeAsync(10); // 420
-
-// 2. Zero-Copy buffer transfer (caller buffer is detached and transferred)
-const audioBuffer = new Uint8Array([0x00, 0xAA, 0xFF]);
-const processed = await worker.processData(audioBuffer);
-// audioBuffer.byteLength is now 0 (transferred with zero copy!)
-
-// 3. Off-thread channel streaming via MessagePort
-for await (const event of worker.streamEvents(3)) {
-  console.log('Worker event:', event);
-}
-
-// 4. Terminate cleanly when finished
-await worker.terminate();
+worker.terminate();
 ```
 
 ---
 
-## Advanced Usage: Standalone CLI (Without Vite)
+### Alternative: Building the Frontend in Nim (`nim js`)
 
-If you are building headless Node.js microservices, audio plugins, CLI tools, or custom build pipelines without Vite, you can compile modules manually with the standalone `nimts` CLI:
+Prefer writing your frontend UI entirely in Nim (`nim js`, standard DOM, or [Karax](https://github.com/karaxnim/karax))? You don't need TypeScript!
 
-### 1. Emit static glue files at compile time
-
-Add an `emitTsGlueFiles` call to the end of your Nim module:
+NimTS provides `nimts/js_client` for consuming high-speed `nimts` WASM from `nim js` with native signatures:
 
 ```nim
-static:
-  # Emits engine.d.ts and engine.js glue code at compile-time
-  emitTsGlueFiles("engine", ".")
+# src/frontend.nim (compile with: nim js -d:release -o:public/app.js src/frontend.nim)
+import std/[dom, asyncjs]
+import nimts/js_client
+
+type SynthExports = ref object of NimTsJsModule
+  addNumbers*: proc(a, b: int32): int32 {.nimcall.}
+  greet*: proc(name: cstring): cstring {.nimcall.}
+  computeAsync*: proc(x: int32): PromiseJs[int32] {.nimcall.}
+
+proc main() {.async.} =
+  let wasm = await loadNimTsExports[SynthExports]("/wasm/synth.wasm")
+
+  document.getElementById("calc-btn").addEventListener("click", proc(e: Event) =
+    let res = wasm.addNumbers(17, 25)
+    document.getElementById("result").textContent = "WASM Result: " & $res
+  )
+
+discard main()
 ```
 
-### 2. Compile to WebAssembly
-
-```bash
-# Standalone micro-WASM (Default: clang + wasm-ld + wasi-sysroot)
-# Produces minimal, zero-bloat WASM:
-nimts compile engine.nim engine.wasm
-
-# Emscripten Runtime Backend
-# Uses emcc with virtual filesystem (FS) and POSIX libc shims:
-nimts compile engine.nim engine.wasm --backend:emscripten
-```
-
-### 3. Consume the generated JavaScript glue
-
-```typescript
-// app.ts
-import { initNimTs, addNumbers } from './engine.js';
-
-await initNimTs();
-console.log(addNumbers(10, 32));
-```
+Read the full [Dual-Tier Nim Architecture Guide](https://axiomantic.github.io/nimts/guide/dual-tier-nim.html) for details.
 
 ---
 
-## Solved WebAssembly Gotchas
+## Standalone CLI & Manual Compilation (Without Vite)
 
-### Gotcha 1: Chrome / V8 4KB Main-Thread Sync Compile Limit
-Browser main threads disallow synchronous WebAssembly compilation (`WebAssembly.compile` or `new WebAssembly.Module`) if the binary buffer size exceeds 4KB, throwing:
-> `RangeError: WebAssembly.Compile is disallowed on the main thread, if the buffer size is larger than 4KB`
+If you are building outside of Vite (headless Node.js services, CLI tools, audio plugins):
 
-**NimTS Solution:**
-The generated JavaScript wrapper automatically handles all modern runtime environments:
-1. **`WebAssembly.instantiateStreaming(fetch(...))`** for modern browsers and bundlers.
-2. **Explicit `initNimTs(options)`** accepting:
-   - `wasmPath`: URL or local file path.
-   - `wasmModule`: Pre-compiled `WebAssembly.Module` (ideal for passing across threads to an `AudioWorkletNode` or Web Worker).
-   - `wasmBytes`: Raw `BufferSource` / `ArrayBuffer`.
-   - `wasmInstance`: Existing instantiated `WebAssembly.Instance`.
+```bash
+# 1. Standalone micro-WASM (Default: clang + wasm-ld + wasi-sysroot)
+# Produces minimal, zero-bloat WASM (~50–250 kB):
+nimts compile src/synth.nim dist/synth.wasm
 
-### Gotcha 2: Nim async/await (`Future[T]`) $\leftrightarrow$ JavaScript `Promise<T>` Bridge
-WebAssembly is fundamentally single-threaded; blocking the WASM thread while waiting for an asynchronous event would freeze the browser host.
+# 2. Emscripten Runtime Backend (emcc with virtual FS and POSIX shims):
+nimts compile src/synth.nim dist/synth.wasm --backend:emscripten
+```
 
-**NimTS Solution:**
-NimTS implements a bidirectional, non-blocking promise bridge:
-- **Nim $\to$ JS**: When an exported `proc foo(): Future[T] {.async, exportts.}` is called, Nim allocates a monotonic `PromiseId`, registers a completion callback, and immediately returns the ID to JavaScript, which wraps it in a real `Promise<T>`. When the Future completes or fails, Nim notifies JavaScript via `nimts_js_resolve_promise` or `nimts_js_reject_promise`.
-- **JS $\to$ Nim**: When Nim awaits an external async operation, it registers a pending `Future[T]` and passes a `FutureId`. When the JS promise settles, JS calls back into WASM `wasm.nimts_resume_future(futureId, dataPtr, dataLen, isError)` which immediately wakes the waiting Nim coroutine.
+Consume the generated ES module in JavaScript/TypeScript:
+```typescript
+import { initNimTs, addNumbers } from './dist/synth.js';
+await initNimTs();
+console.log(addNumbers(17, 25));
+```
 
-### Gotcha 3: Stateful Objects & Handle Leaks
-Passing raw pointers between WebAssembly linear memory and JavaScript risks use-after-free, memory corruption, and garbage collection leaks.
+Read the dedicated guides:
+- [Standalone Micro-WASM Backend (Default)](https://axiomantic.github.io/nimts/guide/backend-standalone.html)
+- [Emscripten Runtime Backend](https://axiomantic.github.io/nimts/guide/backend-emscripten.html)
 
-**NimTS Solution:**
-Stateful entities (`ref object`) are registered in an internal Nim handle registry that increments Nim GC reference counts (`GC_ref`). JavaScript receives a typed class holding an opaque `HandleId`:
-- **Manual cleanup**: `.dispose()` deterministically frees the handle and unrefs the Nim object (`GC_unref`).
-- **Automatic fallback**: Bound to JavaScript's modern `FinalizationRegistry` to prevent leaks if `.dispose()` is forgotten.
+---
+
+## Common WebAssembly Gotchas (And How NimTS Solves Them)
+
+| Gotcha | The Pitfall | How NimTS Solves It |
+| :--- | :--- | :--- |
+| **Main-Thread UI Freezing** | In WebAssembly, computation on the main thread is synchronous. Wrapping a CPU-heavy loop in `Future[T]` still locks the UI event loop and drops animation frames. | **`@axiomantic/nimts/worker` & `?worker`**: Automatically executes compute in an isolated Web Worker thread with typed async proxying and zero-copy `ArrayBuffer` detachment. |
+| **Detached Buffer Trap** | When WebAssembly linear memory expands (`memory.grow`), the underlying `ArrayBuffer` is detached / neutered. Existing typed array views throw `TypeError: Cannot perform %TypedArray%.prototype.slice on a detached ArrayBuffer`. | **Dynamic View Resolution**: NimTS runtime accessors dynamically fetch `wasm.memory.buffer` on every call, preventing stale detached buffer crashes. |
+| **WebGPU 256-Byte Alignment** | WebGPU dynamic uniform buffers require offsets aligned to 256 bytes (`minUniformBufferOffsetAlignment`). Standard `malloc` only aligns to 8 or 16 bytes. | **Aligned Allocators & `GpuBufferSlice[T]`**: `nimts_alloc_aligned(size, 256)` and `GpuBufferSlice` provide hardware-aligned memory and direct zero-copy `queue.writeBuffer` transfers. |
+| **Handle Leaks & Dangling Pointers** | Passing raw pointers to JS risks use-after-free or memory leaks. | **Handle Table + `FinalizationRegistry`**: Stateful `ref object` instances are tracked with `GC_ref`/`GC_unref`, providing deterministic `.dispose()` and automatic GC fallback. |
+| **V8 4KB Sync Compile Limit** | Chromium disallows synchronous `new WebAssembly.Module()` >4KB on the main thread. | **Asynchronous Instantiation**: NimTS uses `WebAssembly.instantiateStreaming` by default and supports pre-compiled module passing for AudioWorklets. |
 
 ---
 
@@ -271,144 +239,46 @@ Stateful entities (`ref object`) are registered in an internal Nim handle regist
 | `bool` | `boolean` | `int32` (0 or 1) $\leftrightarrow$ `boolean` |
 | `string`, `cstring` | `string` | UTF-8 `(ptr, len)` allocated via `nimts_alloc` |
 | `openArray[byte]`, `seq[byte]` | `Uint8Array` | Direct view copy via `allocBytesResult` / `readBytes` |
-| `ref object` | `Class` | Opaque `HandleId` with `FinalizationRegistry` |
+| `ref object` | `Class` | Opaque `HandleId` with `FinalizationRegistry` & `.dispose()` |
 | `object`, `tuple` | `interface` | Automatic JSON serialization / deserialization |
 | `Future[T]` | `Promise<T>` | Bidirectional non-blocking `PromiseId` bridge |
-| `NimTsIterator[T]` | `NimTsIterator<T>` (`IterableIterator<T>`) | Closure iterator handle stepping via monotonic slot registry |
-| `NimTsChannel[T]` | `NimTsChannel<T>` (`AsyncIterable<T>`) | Lock-free SPSC circular queue with backpressure |
+| `ClosureIter[T]` / `NimTsIterator[T]` | `IterableIterator<T>` | Closure iterator stepping via monotonic slot registry (`for..of`) |
+| `Channel[T]` / `NimTsChannel[T]` | `AsyncIterable<T>` | Lock-free SPSC circular queue with backpressure (`for await..of`) |
+| `GpuBufferSlice[T]` | `GpuBufferSlice<T>` | 256-byte aligned WebGPU zero-copy storage buffer slice |
 
 ---
 
-## Vite Plugin Configuration Options
+## Documentation & Guides
 
-The `nimtsPlugin()` accepts configuration options for advanced builds:
-
-```typescript
-// vite.config.ts
-import { defineConfig } from 'vite';
-import { nimtsPlugin } from '@axiomantic/nimts/vite';
-
-export default defineConfig({
-  plugins: [
-    nimtsPlugin({
-      // Extra compiler flags passed directly to Nim
-      extraNimFlags: ['-d:release', '-d:danger'],
-
-      // Choose compilation backend: 'standalone' (default) or 'emscripten'
-      backend: 'standalone',
-
-      // Custom path to wasi-sysroot if not using standard system location
-      sysroot: process.env.WASI_SYSROOT,
-
-      // Directory where generated .wasm binaries are copied for browser serving
-      publicDir: 'public/wasm'
-    })
-  ]
-});
-```
-
----
-
-## AudioWorklet / Web Worker Pattern
-
-To run Nim in an `AudioWorkletProcessor`:
-
-```typescript
-// main.ts
-const wasmModule = await WebAssembly.compileStreaming(fetch('/engine.wasm'));
-audioContext.audioWorklet.addModule('dsp-processor.js');
-
-const node = new AudioWorkletNode(audioContext, 'dsp-processor', {
-  processorOptions: { wasmModule }
-});
-```
-
-```typescript
-// dsp-processor.ts
-import { initNimTs, processAudio } from './engine.js';
-
-class DspProcessor extends AudioWorkletProcessor {
-  constructor(options) {
-    super();
-    // Initialize synchronously from pre-compiled module
-    initNimTs({ wasmModule: options.processorOptions.wasmModule });
-  }
-
-  process(inputs, outputs) {
-    // Zero-allocation high-speed DSP processing
-    processAudio(inputs[0][0], outputs[0][0]);
-    return true;
-  }
-}
-registerProcessor('dsp-processor', DspProcessor);
-```
-
----
-
-## CLI Reference
-
-NimTS includes a command-line tool for compiling Nim modules into WebAssembly:
-
-```bash
-# Display help and available backends
-nimts --help
-
-# Display version
-nimts --version
-
-# Compile a Nim module using the standalone micro-WASM backend (default)
-nimts compile src/dsp.nim dist/dsp.wasm
-
-# Explicitly choose the standalone micro-WASM backend (LLVM clang + wasm-ld + wasi-sysroot)
-nimts compile src/dsp.nim dist/dsp.wasm --backend:standalone
-
-# Choose the Emscripten backend (emcc with POSIX shims, virtual FS, and environment polyfills)
-nimts compile src/dsp.nim dist/dsp.wasm --backend:emscripten
-```
-
-### Backend Comparison
-
-| Backend | Toolchain | Runtime Size | Virtual FS / POSIX | Best For |
-| :--- | :--- | :--- | :--- | :--- |
-| **`standalone`** *(Default)* | Clang + wasm-ld + wasi-sysroot | Tiny (~50–350 kB) | Minimal stubbing | AudioWorklets, Web Workers, micro-libraries, latency-critical DSP |
-| **`emscripten`** | Emscripten (`emcc`) | Larger (~300 kB–1+ MB) | Full in-memory POSIX & `FS` | Legacy C/Nim dependencies needing filesystem, canvas, or full POSIX libc |
+- [Getting Started Guide](https://axiomantic.github.io/nimts/guide/getting-started.html)
+- [Core Concepts & `{.exportts.}`](https://axiomantic.github.io/nimts/guide/non-invasive-exports.html)
+- [Type Marshaling Deep Dive](https://axiomantic.github.io/nimts/guide/type-marshaling.html)
+- [Stateful Handles & Garbage Collection](https://axiomantic.github.io/nimts/guide/stateful-handles.html)
+- [Async Future ↔ Promise Bridge](https://axiomantic.github.io/nimts/guide/async-bridge.html)
+- [Vite Plugin Integration](https://axiomantic.github.io/nimts/guide/vite-plugin.html)
+- [AudioWorklet & Web Workers](https://axiomantic.github.io/nimts/guide/audioworklet-workers.html)
+- [WebGPU & GPU Compute Guide](https://axiomantic.github.io/nimts/guide/webgpu-compute.html)
+- [Dual-Tier Nim Architecture (`nim js` + WASM)](https://axiomantic.github.io/nimts/guide/dual-tier-nim.html)
+- [Standalone Micro-WASM Backend](https://axiomantic.github.io/nimts/guide/backend-standalone.html)
+- [Emscripten Runtime Backend](https://axiomantic.github.io/nimts/guide/backend-emscripten.html)
 
 ---
 
 ## Running Tests
 
-NimTS has comprehensive test suites for both native Nim execution and WebAssembly runtime integration:
-
 ```bash
-# Run Nimble unit tests (macro non-invasiveness, memory, handles, async bridge, codegen, CLI)
+# Run all Nimble test suites (memory, handles, async, channels, codegen, CLI)
 nimble test
 
-# Run TypeScript / Vitest WebAssembly integration tests
+# Run all TypeScript / Vitest suites (sync/async, Web Workers, negative controls, Vite plugin)
 npm test
-```
-
----
-
-## Publishing
-
-To publish a new version to npm and GitHub:
-
-```bash
-# 1. Ensure all tests pass and package builds cleanly
-npm run prepublishOnly
-
-# 2. Check packaging contents
-npm pack --dry-run
-
-# 3. Publish to npm
-npm publish --access public
 ```
 
 ---
 
 ## Contributing
 
-Contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for local development setup, toolchain requirements, and guidelines.
+Contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for local development setup and guidelines.
 
 ---
 
