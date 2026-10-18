@@ -206,17 +206,17 @@ For all parallel development tracks:
   - *Verification*: `nimble test` (11/11) and `npm test` (71/71) pass 100% green.
   - *Weave*: Woven in commit `cb636fe` and pushed to `origin/main`.
 
-- [ ] **Task 6.5: Consolidated Documentation Synchronization for Latest Behaviors** (`nimts-implementer`)
+- [x] **Task 6.5: Consolidated Documentation Synchronization for Latest Behaviors** (`nimts-implementer`)
   - *Strand*: `strand/task-6-5-docs-sync`
   - *Provider*: `README.md`, `docs/guide/async-bridge.md`, `docs/reference/typescript-runtime.md`, `docs/reference/nim-api.md`, `docs/guide/type-marshaling.md`
   - *Deliverables*:
-    - `README.md`: Showcase `@axiomantic/nimts/worker` and `spawnWorker` in Quickstart & Key Highlights; highlight idiomatic `Channel[T]` alias.
-    - `docs/guide/async-bridge.md`: Detail honest off-thread async (`spawnWorker`) vs in-thread coroutine bridging (`Future[T]`), explaining that CPU-bound work on single-threaded WASM blocks the main UI thread unless offloaded to a Web Worker.
-    - `docs/reference/typescript-runtime.md`: Add comprehensive reference section for `@axiomantic/nimts/worker` (`spawnWorker`, `NimTsWorkerClient`, zero-copy buffer transfer, async proxy).
-    - `docs/reference/nim-api.md`: Remove outdated references to JS event-loop fallback; document `type Channel*[T] = NimTsChannel[T]`, `newChannel[T]()`, and `nimts_chan_get_raw_ptrs`.
-    - `docs/guide/type-marshaling.md`: Note `Channel[T]` ergonomics alongside `NimTsChannel[T]`.
-  - *Verification*: `npm run docs:build` (0 errors), `npm test` (100% green), `nimble test` (100% green).
-  - *Weave*: `vine gate && vine weave`
+    - `README.md`: Showcased `@axiomantic/nimts/worker` and `spawnWorker` in Quickstart & Key Highlights; highlighted idiomatic `Channel[T]` alias.
+    - `docs/guide/async-bridge.md`: Detailed honest off-thread async (`spawnWorker`) vs in-thread coroutine bridging (`Future[T]`), explaining that CPU-bound work on single-threaded WASM blocks the main UI thread unless offloaded to a Web Worker.
+    - `docs/reference/typescript-runtime.md`: Added comprehensive reference section for `@axiomantic/nimts/worker` (`spawnWorker`, `NimTsWorkerClient`, zero-copy buffer transfer, async proxy).
+    - `docs/reference/nim-api.md`: Removed outdated references to JS event-loop fallback; documented `type Channel*[T] = NimTsChannel[T]`, `newChannel[T]()`, and `nimts_chan_get_raw_ptrs`.
+    - `docs/guide/type-marshaling.md`: Added `Channel[T]` ergonomics and SPSC channel streaming section.
+  - *Verification*: `npm run docs:build` (100% green, 0 errors, 19.6s), `npm test` (100% green), `nimble test` (100% green).
+  - *Weave*: Woven in commit `a94a711` and pushed to `origin/main`.
 
 
 
