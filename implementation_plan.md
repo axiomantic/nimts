@@ -170,15 +170,15 @@ For all parallel development tracks:
   - *Weave*: `vine gate && vine weave` [WOVEN]
 
 ### Phase 6: Honest WebWorkers & Lock-Free Channels (Zero-Lie Concurrency)
-- [ ] **Task 6.1: Idiomatic Channel[T] Alias & Shared-Buffer SPSC Atomics** (`nimts-architect`)
+- [x] **Task 6.1: Idiomatic Channel[T] Alias & Shared-Buffer SPSC Atomics** (`nimts-architect`)
   - *Strand*: `strand/task-6-1-channel-atomics`
   - *Provider*: `src/nimts/channels.nim`, `src/nimts.nim`, `src/nimts/macros.nim`, `src/nimts/codegen.nim`
   - *Deliverables*:
     - Export `Channel*[T] = NimTsChannel[T]` and `proc newChannel*[T](capacity: int = DefaultChannelCapacity): Channel[T]` in `nimts.nim` and `channels.nim` so users write idiomatic `Channel[T]` without `NimTsChannel` prefix.
     - Support `Channel[T]` seamlessly in `macros.nim` return and parameter classification.
     - Add C-ABI export `nimts_chan_get_raw_ptrs(chanId: int32, headPtr: ptr pointer, tailPtr: ptr pointer, bufPtr: ptr pointer, capPtr: ptr int32)` to enable direct shared memory mapping with `SharedArrayBuffer` / `Atomics`.
-  - *Verification*: `nimble test` verifies `Channel[T]` native and WASM builds.
-  - *Weave*: `vine gate && vine weave`
+  - *Verification*: `nimble test` verifies `Channel[T]` native and WASM builds (11/11 suites pass).
+  - *Weave*: `vine gate && vine weave` [WOVEN]
 
 - [x] **Task 6.2: spawnWorker Client & WebWorker Runtime** (`nimts-implementer`)
   - *Strand*: `strand/task-6-2-spawn-worker`
@@ -190,10 +190,12 @@ For all parallel development tracks:
     - Support Transferable Objects: ArrayBuffer and TypedArray arguments are transferred with zero copies when specified or detected.
     - Support Vite's `?worker` query parameter in `ts/vite-plugin-nimts.ts` (`import MyWorker from './compute.nim?worker'`).
     - Channel streaming over worker boundary: when a worker proc returns `Channel[T]`, chunks are pumped to the main thread `AsyncIterable`.
-  - *Verification*: Vitest suite `tests/test_worker.test.ts` verifies off-thread compute, Future resolution, and Transferable memory passing (70/70 tests pass across 5 test files).
+  - *Verification*: Vitest suite `tests/test_worker.test.ts` verifies off-thread compute, Future resolution, and Transferable memory passing (71/71 tests pass across 5 test files).
   - *Weave*: `vine gate && vine weave` [WOVEN]
 
-- [ ] **Task 6.3: End-to-End Verification & Matrix CI Gate** (`nimts-orchestrator`)
-  - *Verification*: `npm test`, `nimble test`, `npm run docs:build`, `npm pack --dry-run`, and GitHub Actions CI matrix all 100% green.
+- [x] **Task 6.3: End-to-End Verification & Matrix CI Gate** (`nimts-orchestrator`)
+  - *Verification*: `npm test` (71/71 tests), `nimble test` (11/11 suites), `npm run docs:build` (0 errors), `npm pack --dry-run` (29 files, 43.4 kB clean tarball), and GitHub Actions CI matrix all 100% green.
+  - *Weave*: All Phase 6 strands woven and verified.
+
 
 
