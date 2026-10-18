@@ -17,6 +17,10 @@ export channels
 export codegen
 export macros
 
+when defined(js):
+  import nimts/js_client
+  export js_client
+
 when isMainModule:
   import std/os
   import std/osproc

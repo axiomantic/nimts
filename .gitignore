@@ -5,6 +5,7 @@ nimcache/
 tests/fixtures/nimcache/
 tests/fixtures/*.wasm
 tests/fixtures/*.js
+tests/fixtures/*.mjs
 tests/fixtures/*.d.ts
 *.o
 .DS_Store
