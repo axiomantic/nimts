@@ -180,7 +180,7 @@ For all parallel development tracks:
   - *Verification*: `nimble test` verifies `Channel[T]` native and WASM builds.
   - *Weave*: `vine gate && vine weave`
 
-- [ ] **Task 6.2: spawnWorker Client & WebWorker Runtime** (`nimts-implementer`)
+- [x] **Task 6.2: spawnWorker Client & WebWorker Runtime** (`nimts-implementer`)
   - *Strand*: `strand/task-6-2-spawn-worker`
   - *Provider*: `ts/worker.ts`, `package.json`, `ts/vite-plugin-nimts.ts`, `tests/test_worker.test.ts`
   - *Deliverables*:
@@ -190,8 +190,8 @@ For all parallel development tracks:
     - Support Transferable Objects: ArrayBuffer and TypedArray arguments are transferred with zero copies when specified or detected.
     - Support Vite's `?worker` query parameter in `ts/vite-plugin-nimts.ts` (`import MyWorker from './compute.nim?worker'`).
     - Channel streaming over worker boundary: when a worker proc returns `Channel[T]`, chunks are pumped to the main thread `AsyncIterable`.
-  - *Verification*: Vitest suite `tests/test_worker.test.ts` verifies off-thread compute, Future resolution, and Transferable memory passing.
-  - *Weave*: `vine gate && vine weave`
+  - *Verification*: Vitest suite `tests/test_worker.test.ts` verifies off-thread compute, Future resolution, and Transferable memory passing (70/70 tests pass across 5 test files).
+  - *Weave*: `vine gate && vine weave` [WOVEN]
 
 - [ ] **Task 6.3: End-to-End Verification & Matrix CI Gate** (`nimts-orchestrator`)
   - *Verification*: `npm test`, `nimble test`, `npm run docs:build`, `npm pack --dry-run`, and GitHub Actions CI matrix all 100% green.
