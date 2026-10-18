@@ -218,6 +218,40 @@ For all parallel development tracks:
   - *Verification*: `npm run docs:build` (100% green, 0 errors, 19.6s), `npm test` (100% green), `nimble test` (100% green).
   - *Weave*: Woven in commit `a94a711` and pushed to `origin/main`.
 
+## Phase 7: WebGPU Aligned Storage & Dual-Tier Nim Architecture
+
+- [ ] **Task 7.1: WebGPU 256-Byte Aligned Allocator & Zero-Copy Storage Buffer Helpers** (`nimts-architect`)
+  - *Strand*: `strand/task-7-1-webgpu-aligned-storage`
+  - *Provider*: `src/nimts/memory.nim`, `src/nimts/types.nim`, `src/nimts/codegen.nim`, `ts/runtime.ts`
+  - *Deliverables*:
+    - In `src/nimts/memory.nim`: Implement `nimts_alloc_aligned(size: int32, alignment: int32): pointer` and `nimts_free_aligned(p: pointer)` with power-of-two support (especially 256-byte WebGPU `minUniformBufferOffsetAlignment` and 4-byte storage buffer alignment).
+    - In `src/nimts/types.nim`: Define `GpuBufferSlice*[T]` object exposing pointer, byte length, element count, and alignment.
+    - In `src/nimts/codegen.nim` & `ts/runtime.ts`: Generate TypeScript bindings for `GpuBufferSlice<T>` providing zero-copy `ArrayBufferView` access and helper `writeToGpuBuffer(device: GPUDevice, targetBuffer: GPUBuffer, offset = 0)`.
+    - Export C-ABI entry points: `nimts_alloc_aligned`, `nimts_free_aligned`.
+  - *Verification*: Unit tests in `tests/test_memory.nim` and TypeScript integration tests in `tests/test_runtime.test.ts`.
+  - *Weave*: `vine gate && vine weave`
+
+- [ ] **Task 7.2: Dual-Tier Nim-to-JS Client Module & Automated Integration Test** (`nimts-implementer`)
+  - *Strand*: `strand/task-7-2-nim-js-client`
+  - *Provider*: `src/nimts/js_client.nim`, `tests/test_nim_js_client.nim`, `package.json`
+  - *Deliverables*:
+    - Implement `src/nimts/js_client.nim`: A lightweight Nim module for `nim js` code providing idiomatic interop with `nimts` WASM modules (`loadNimTs`, `callWasm`, type shims for `Future[T]` and byte buffers).
+    - Implement `tests/test_nim_js_client.nim`: Complete test compiled with `nim js -d:nodejs` that imports `test_module.js`, loads `test_module.wasm`, executes sync and async functions, verifies byte buffers, and asserts full correctness.
+    - Wire `npm run test:nim-js` into `package.json` and `npm test` workflow.
+  - *Verification*: `npm run test:nim-js` and `npm test` passing 100% green.
+  - *Weave*: `vine gate && vine weave`
+
+- [ ] **Task 7.3: WebGPU Compute & Dual-Tier Architecture Guides & Documentation** (`nimts-implementer`)
+  - *Strand*: `strand/task-7-3-webgpu-dual-tier-docs`
+  - *Provider*: `docs/guide/webgpu-compute.md`, `docs/guide/dual-tier-nim.md`, `docs/.vitepress/config.mts`, `README.md`
+  - *Deliverables*:
+    - Author `docs/guide/webgpu-compute.md`: Zero-copy storage buffers, 256-byte alignment, tensor data pipelines, and WebGPU WGSL compute shader integration.
+    - Author `docs/guide/dual-tier-nim.md`: Dual-Tier Nim Architecture (Nim-to-JS DOM + Nim-to-WASM Compute), including the comprehensive 7-point empirical limitations table (`nim js` vs `nim c/WASM`) and working code snippets.
+    - Update VitePress navigation sidebar in `docs/.vitepress/config.mts`.
+    - Update `README.md` with WebGPU and Dual-Tier Nim highlights.
+  - *Verification*: `npm run docs:build` passes cleanly with 0 errors.
+  - *Weave*: `vine gate && vine weave`
+
 
 
 
