@@ -75,16 +75,16 @@ If an error occurred, passing `isError = 1` causes Nim to fail the `Future` with
 
 ---
 
-## In-Thread Coroutines vs. Honest Off-Thread Execution
+## In-Thread Coroutines vs. Background Worker Execution
 
-A crucial distinction in WebAssembly and browser architecture is the difference between **in-thread coroutine scheduling** and **honest off-thread execution**.
+A crucial distinction in WebAssembly and browser architecture is the difference between **in-thread coroutine scheduling** and **dedicated background worker execution**.
 
-### The "Lying Async" Pitfall
+### The CPU-Bound Main Thread Pitfall
 
-Because standard WebAssembly instances run on the caller's thread, wrapping synchronous, CPU-intensive code inside a Nim `{.async.}` proc does **not** move computation to a background thread. 
+Because standard WebAssembly instances run on the caller's thread, wrapping synchronous, CPU-intensive code inside a Nim `{.async.}` proc does **not** automatically move computation to a background thread. 
 
 ```nim
-# ⚠️ CAUTION: Lying Async on Main Thread
+# ⚠️ CAUTION: CPU-Bound Execution on Main Thread
 proc heavyComputation*(iterations: int32): Future[int32] {.async, exportts.} =
   var sum = 0'i32
   for i in 0 ..< iterations: # CPU-bound loop!
@@ -105,7 +105,7 @@ Even though TypeScript sees `Promise<number>` and awaits it with `await heavyCom
 | **Physics, Math & Heavy Simulations** | `spawnWorker` (`@axiomantic/nimts/worker`) | Off-thread worker with transparent async RPC |
 | **Large Binary Processing / Cryptography** | `spawnWorker` (`@axiomantic/nimts/worker`) | Zero-copy `ArrayBuffer` detachment via Transferable objects |
 
-### Honest Off-Thread Execution via `spawnWorker`
+### Dedicated Off-Thread Execution via `spawnWorker`
 
 When you need true background parallelism without blocking the browser UI, use `@axiomantic/nimts/worker`:
 

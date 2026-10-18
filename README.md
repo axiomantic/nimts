@@ -18,7 +18,7 @@ NimTS enables writing high-performance WebAssembly libraries in Nim with natural
 ## Key Highlights
 
 - ⚡ **Zero-Overhead `{.exportts.}`**: Preserves native Nim signatures and behavior. Procs remain 100% callable by native Nim CLI tools, VST/CLAP audio plugins, and native unit tests with zero overhead.
-- 🧵 **Honest Off-Thread Web Worker Runtime (`@axiomantic/nimts/worker`)**: Run CPU/DSP algorithms in dedicated background threads via `spawnWorker` or Vite's `?worker` query. Transparent typed async proxying, automatic `Future[T]` awaiting, and true zero-copy `ArrayBuffer` detachment via Transferable objects.
+- 🧵 **Multi-Threaded Web Worker Runtime (`@axiomantic/nimts/worker`)**: Run CPU/DSP algorithms in dedicated background threads via `spawnWorker` or Vite's `?worker` query. Transparent typed async proxying, automatic `Future[T]` awaiting, and true zero-copy `ArrayBuffer` detachment via Transferable objects.
 - 🔄 **Bidirectional Async Bridge**: Automatically bridges Nim `Future[T]` and JavaScript `Promise<T>` without blocking the main browser thread.
 - 🎛️ **Stateful Handles with GC**: Exports `ref object` instances as type-safe opaque handles with automatic garbage collection via JavaScript's `FinalizationRegistry` and deterministic manual `.dispose()`.
 - 🔁 **Closure Iterators & SPSC Channels**: Stream data from Nim closures as standard ES2015 `IterableIterator<T>` (`for..of`, `[...]`) and lock-free SPSC channels (`Channel[T]` / `NimTsChannel[T]`) as `AsyncIterable<T>` (`for await..of`).
