@@ -197,5 +197,16 @@ For all parallel development tracks:
   - *Verification*: `npm test` (71/71 tests), `nimble test` (11/11 suites), `npm run docs:build` (0 errors), `npm pack --dry-run` (29 files, 43.4 kB clean tarball), and GitHub Actions CI matrix all 100% green.
   - *Weave*: All Phase 6 strands woven and verified.
 
+- [ ] **Task 6.4: Purge Pure JS (`defined(js)`) Vestigial Fallbacks & Clarify WebAssembly Exclusivity** (`nimts-architect`)
+  - *Strand*: `strand/task-6-4-purge-js-target`
+  - *Provider*: `src/nimts/channels.nim`, `tests/test_channels.nim`, `docs/`, `understanding.md`, `audit_report.md`
+  - *Deliverables*:
+    - Completely purge all `when defined(js)` non-atomic dead branches in `src/nimts/channels.nim` (lines 9, 19-27, 41-48, 52-56, 59-63, 66-72, 87-103, 109-125), making `head`, `tail`, and `closed` unconditionally atomic (`Atomic[uint32]` / `Atomic[bool]` from `std/atomics`).
+    - Purge `when not defined(js)` guard in `tests/test_channels.nim`.
+    - Update docs and architecture specs to clarify that `nimts` exclusively bridges Nim to WebAssembly (standalone wasm-ld or Emscripten) and does not support the pure JavaScript target (`nim js`), preserving zero-dead-code and literal-fidelity invariants.
+  - *Verification*: `nimble test && npm test` pass 100% green.
+  - *Weave*: `vine gate && vine weave`
+
+
 
 
