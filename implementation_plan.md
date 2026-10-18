@@ -197,14 +197,25 @@ For all parallel development tracks:
   - *Verification*: `npm test` (71/71 tests), `nimble test` (11/11 suites), `npm run docs:build` (0 errors), `npm pack --dry-run` (29 files, 43.4 kB clean tarball), and GitHub Actions CI matrix all 100% green.
   - *Weave*: All Phase 6 strands woven and verified.
 
-- [ ] **Task 6.4: Purge Pure JS (`defined(js)`) Vestigial Fallbacks & Clarify WebAssembly Exclusivity** (`nimts-architect`)
+- [x] **Task 6.4: Purge Pure JS (`defined(js)`) Vestigial Fallbacks & Clarify WebAssembly Exclusivity** (`nimts-architect`)
   - *Strand*: `strand/task-6-4-purge-js-target`
   - *Provider*: `src/nimts/channels.nim`, `tests/test_channels.nim`, `docs/`, `understanding.md`, `audit_report.md`
   - *Deliverables*:
-    - Completely purge all `when defined(js)` non-atomic dead branches in `src/nimts/channels.nim` (lines 9, 19-27, 41-48, 52-56, 59-63, 66-72, 87-103, 109-125), making `head`, `tail`, and `closed` unconditionally atomic (`Atomic[uint32]` / `Atomic[bool]` from `std/atomics`).
-    - Purge `when not defined(js)` guard in `tests/test_channels.nim`.
-    - Update docs and architecture specs to clarify that `nimts` exclusively bridges Nim to WebAssembly (standalone wasm-ld or Emscripten) and does not support the pure JavaScript target (`nim js`), preserving zero-dead-code and literal-fidelity invariants.
-  - *Verification*: `nimble test && npm test` pass 100% green.
+    - Completely purged all `when defined(js)` and `when not defined(js):` dead branches and guards in `src/nimts/channels.nim` and `tests/test_channels.nim`. Channel fields (`head`, `tail`, `closed`), `import std/atomics`, and `nimts_chan_get_raw_ptrs` are now 100% unconditional.
+    - Updated architecture specs, `understanding.md`, and `audit_report.md` (WARN-03) clarifying WebAssembly exclusivity (clang/wasm-ld and Emscripten).
+  - *Verification*: `nimble test` (11/11) and `npm test` (71/71) pass 100% green.
+  - *Weave*: Woven in commit `cb636fe` and pushed to `origin/main`.
+
+- [ ] **Task 6.5: Consolidated Documentation Synchronization for Latest Behaviors** (`nimts-implementer`)
+  - *Strand*: `strand/task-6-5-docs-sync`
+  - *Provider*: `README.md`, `docs/guide/async-bridge.md`, `docs/reference/typescript-runtime.md`, `docs/reference/nim-api.md`, `docs/guide/type-marshaling.md`
+  - *Deliverables*:
+    - `README.md`: Showcase `@axiomantic/nimts/worker` and `spawnWorker` in Quickstart & Key Highlights; highlight idiomatic `Channel[T]` alias.
+    - `docs/guide/async-bridge.md`: Detail honest off-thread async (`spawnWorker`) vs in-thread coroutine bridging (`Future[T]`), explaining that CPU-bound work on single-threaded WASM blocks the main UI thread unless offloaded to a Web Worker.
+    - `docs/reference/typescript-runtime.md`: Add comprehensive reference section for `@axiomantic/nimts/worker` (`spawnWorker`, `NimTsWorkerClient`, zero-copy buffer transfer, async proxy).
+    - `docs/reference/nim-api.md`: Remove outdated references to JS event-loop fallback; document `type Channel*[T] = NimTsChannel[T]`, `newChannel[T]()`, and `nimts_chan_get_raw_ptrs`.
+    - `docs/guide/type-marshaling.md`: Note `Channel[T]` ergonomics alongside `NimTsChannel[T]`.
+  - *Verification*: `npm run docs:build` (0 errors), `npm test` (100% green), `nimble test` (100% green).
   - *Weave*: `vine gate && vine weave`
 
 
