@@ -26,6 +26,8 @@ type
       closed*: Atomic[bool]
     buffer*: seq[T]
 
+  Channel*[T] = NimTsChannel[T]
+
 proc newNimTsChannel*[T](capacity: int = DefaultChannelCapacity): NimTsChannel[T] =
   var cap = capacity
   if cap <= 0: cap = DefaultChannelCapacity
@@ -46,6 +48,9 @@ proc newNimTsChannel*[T](capacity: int = DefaultChannelCapacity): NimTsChannel[T
     result.head.store(0'u32, moRelaxed)
     result.tail.store(0'u32, moRelaxed)
     result.closed.store(false, moRelaxed)
+
+proc newChannel*[T](capacity: int = DefaultChannelCapacity): Channel[T] =
+  newNimTsChannel[T](capacity)
 
 proc isClosed*[T](chan: NimTsChannel[T]): bool =
   if chan.isNil: return true
@@ -145,10 +150,30 @@ type
     isClosedProc*: proc(chanPtr: pointer): bool {.nimcall.}
     closeProc*: proc(chanPtr: pointer) {.nimcall.}
     destroyProc*: proc(chanPtr: pointer) {.nimcall.}
+    getRawPtrsProc*: proc(chanPtr: pointer, headPtr: ptr pointer, tailPtr: ptr pointer, bufPtr: ptr pointer, capPtr: ptr int32): int32 {.nimcall.}
 
 var
   gChannelSlots = initTable[int32, NimTsChannelSlot]()
   gChanCounter: int32 = 1
+
+proc chanGetRawPtrsHelper[T](chanPtr: pointer, headPtr: ptr pointer, tailPtr: ptr pointer, bufPtr: ptr pointer, capPtr: ptr int32): int32 {.nimcall.} =
+  if chanPtr == nil: return -1
+  let chan = cast[NimTsChannel[T]](chanPtr)
+  when not defined(js):
+    if headPtr != nil:
+      headPtr[] = cast[pointer](addr chan.head)
+    if tailPtr != nil:
+      tailPtr[] = cast[pointer](addr chan.tail)
+    if capPtr != nil:
+      capPtr[] = chan.capacity.int32
+    if bufPtr != nil:
+      if chan.buffer.len > 0:
+        bufPtr[] = cast[pointer](addr chan.buffer[0])
+      else:
+        bufPtr[] = nil
+    return 0
+  else:
+    return -1
 
 proc chanTryRecvHelper[T](chanPtr: pointer): uint64 {.nimcall.} =
   if chanPtr == nil: return 0'u64
@@ -215,7 +240,8 @@ proc registerChannel*[T](chan: NimTsChannel[T]): int32 =
     trySendProc: chanTrySendHelper[T],
     isClosedProc: chanIsClosedHelper[T],
     closeProc: chanCloseHelper[T],
-    destroyProc: chanDestroyHelper[T]
+    destroyProc: chanDestroyHelper[T],
+    getRawPtrsProc: chanGetRawPtrsHelper[T]
   )
   gChannelSlots[id] = slot
   return id
@@ -252,6 +278,12 @@ proc nimts_chan_destroy*(chanId: int32) {.exportc: "nimts_chan_destroy", cdecl.}
     if slot.destroyProc != nil:
       slot.destroyProc(slot.chanPtr)
 
+proc nimts_chan_get_raw_ptrs*(chanId: int32, headPtr: ptr pointer, tailPtr: ptr pointer, bufPtr: ptr pointer, capPtr: ptr int32): int32 {.exportc: "nimts_chan_get_raw_ptrs", cdecl.} =
+  if not gChannelSlots.hasKey(chanId): return -1
+  let slot = gChannelSlots[chanId]
+  if slot.getRawPtrsProc == nil: return -1
+  return slot.getRawPtrsProc(slot.chanPtr, headPtr, tailPtr, bufPtr, capPtr)
+
 # Module-namespaced C-ABI aliases
 proc nimts_core_chan_send*(chanId: int32, dataPtr: pointer, dataLen: int32): int32 {.exportc: "nimts_core_chan_send", cdecl.} =
   nimts_chan_send(chanId, dataPtr, dataLen)
@@ -265,6 +297,9 @@ proc nimts_core_chan_is_closed*(chanId: int32): int32 {.exportc: "nimts_core_cha
 proc nimts_core_chan_close*(chanId: int32) {.exportc: "nimts_core_chan_close", cdecl.} =
   nimts_chan_close(chanId)
 
+proc nimts_core_chan_get_raw_ptrs*(chanId: int32, headPtr: ptr pointer, tailPtr: ptr pointer, bufPtr: ptr pointer, capPtr: ptr int32): int32 {.exportc: "nimts_core_chan_get_raw_ptrs", cdecl.} =
+  nimts_chan_get_raw_ptrs(chanId, headPtr, tailPtr, bufPtr, capPtr)
+
 import std/macros
 
 macro exportModuleChannelCabi*(moduleName: static[string]): untyped =
@@ -274,6 +309,7 @@ macro exportModuleChannelCabi*(moduleName: static[string]): untyped =
   let tryRecvName = "nimts_" & moduleName & "_chan_try_recv"
   let isClosedName = "nimts_" & moduleName & "_chan_is_closed"
   let closeName = "nimts_" & moduleName & "_chan_close"
+  let getRawPtrsName = "nimts_" & moduleName & "_chan_get_raw_ptrs"
   result.add(parseStmt("""
 proc `""" & sendName & """`*(chanId: int32, dataPtr: pointer, dataLen: int32): int32 {.exportc: """" & sendName & """", cdecl.} =
   nimts_chan_send(chanId, dataPtr, dataLen)
@@ -286,4 +322,7 @@ proc `""" & isClosedName & """`*(chanId: int32): int32 {.exportc: """" & isClose
 
 proc `""" & closeName & """`*(chanId: int32) {.exportc: """" & closeName & """", cdecl.} =
   nimts_chan_close(chanId)
+
+proc `""" & getRawPtrsName & """`*(chanId: int32, headPtr: ptr pointer, tailPtr: ptr pointer, bufPtr: ptr pointer, capPtr: ptr int32): int32 {.exportc: """" & getRawPtrsName & """", cdecl.} =
+  nimts_chan_get_raw_ptrs(chanId, headPtr, tailPtr, bufPtr, capPtr)
 """))

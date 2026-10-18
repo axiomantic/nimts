@@ -24,7 +24,9 @@ import {
   NimTsIterator,
   streamWords,
   streamNumbers,
-  NimTsChannel
+  streamIdiomaticChannel,
+  NimTsChannel,
+  Channel
 } from './fixtures/test_module.js';
 
 const WASM_FILE = path.resolve(__dirname, 'fixtures/test_module.wasm');
@@ -355,6 +357,23 @@ describe('NimTS WebAssembly Integration (Sync & Async)', () => {
       chan.close();
       expect(chan.isClosed).toBe(true);
       expect(chan.channelId).toBe(0);
+    });
+
+    it('creates and interacts with Channel[int32] via streamIdiomaticChannel and verifies Channel export', async () => {
+      expect(Channel).toBe(NimTsChannel);
+
+      const chan = streamIdiomaticChannel(5);
+      expect(chan).toBeInstanceOf(NimTsChannel);
+      expect(chan).toBeInstanceOf(Channel);
+      expect(chan.channelId).toBeGreaterThan(0);
+      expect(chan.isClosed).toBe(false);
+
+      // Drain items via for-await-of
+      const items: number[] = [];
+      for await (const val of chan) {
+        items.push(val);
+      }
+      expect(items).toEqual([10, 20, 30, 40, 50]);
     });
   });
 });

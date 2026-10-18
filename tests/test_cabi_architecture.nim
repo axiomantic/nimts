@@ -25,6 +25,9 @@ proc failVoid*(x: int32) {.exportts.} =
 proc createStringChannel*(cap: int): NimTsChannel[string] {.exportts.} =
   result = newNimTsChannel[string](cap)
 
+proc createIntChannel*(cap: int): Channel[int32] {.exportts.} =
+  result = newChannel[int32](cap)
+
 suite "C-ABI & Macro Architecture Remediation (Task 4.1)":
 
   test "Synchronous CatchableError is caught by companion proc without crashing":
@@ -83,6 +86,23 @@ suite "C-ABI & Macro Architecture Remediation (Task 4.1)":
     check retrieved.capacity == 16
 
     # Teardown
+    releaseHandle(hid)
+    check activeHandleCount() == initialCount
+
+  test "Channel[T] return registers channel into handle table":
+    let initialCount = activeHandleCount()
+    let ch = createIntChannel(8)
+    check ch != nil
+    check ch.capacity == 8
+
+    let hid = registerHandle(ch)
+    check hid > 0
+    check activeHandleCount() == initialCount + 1
+
+    let retrieved = getHandle[NimTsChannel[int32]](hid)
+    check retrieved != nil
+    check retrieved.capacity == 8
+
     releaseHandle(hid)
     check activeHandleCount() == initialCount
 

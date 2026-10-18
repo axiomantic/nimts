@@ -50,8 +50,22 @@ proc replacePlaceholder(n: NimNode, replacement: NimNode): NimNode =
   for child in n:
     result.add(replacePlaceholder(child, replacement))
 
+proc rewriteChannelNodes(n: NimNode): NimNode =
+  if n.kind == nnkIdent and n.strVal == "Channel":
+    return ident("NimTsChannel")
+  result = copyNimNode(n)
+  for child in n:
+    result.add(rewriteChannelNodes(child))
+
 proc classifyParamType(typeNode: NimNode): (ParamKind, string, string) =
   let typeRepr = typeNode.repr.strip
+  if (typeRepr.startsWith("NimTsChannel[") and typeRepr.endsWith("]")) or
+     (typeRepr.startsWith("Channel[") and typeRepr.endsWith("]")):
+    let prefixLen = if typeRepr.startsWith("NimTsChannel["): 13 else: 8
+    let inner = typeRepr[prefixLen .. ^2]
+    return (pkHandle, typeRepr, "NimTsChannel<" & mapNimTypeToTs(inner) & ">")
+  elif typeRepr == "NimTsChannel" or typeRepr == "Channel":
+    return (pkHandle, typeRepr, "NimTsChannel<any>")
   case typeRepr
   of "int", "int32", "int16", "int8", "uint", "uint32", "uint16", "uint8", "int64", "uint64", "float", "float32", "float64", "bool", "char":
     return (pkPrimitive, typeRepr, mapNimTypeToTs(typeRepr))
@@ -101,8 +115,10 @@ proc classifyReturnType(retNode: NimNode): (string, string, bool, string) =
       of "seq[byte]", "openArray[byte]", "seq[uint8]", "openArray[uint8]": "bytes"
       else: "object"
     return (retRepr, "NimTsIterator<" & innerTs & ">", false, "iterator:" & innerKind)
-  if retRepr.startsWith("NimTsChannel[") and retRepr.endsWith("]"):
-    let inner = retRepr[13 .. ^2]
+  if (retRepr.startsWith("NimTsChannel[") and retRepr.endsWith("]")) or
+     (retRepr.startsWith("Channel[") and retRepr.endsWith("]")):
+    let prefixLen = if retRepr.startsWith("NimTsChannel["): 13 else: 8
+    let inner = retRepr[prefixLen .. ^2]
     let innerTs = mapNimTypeToTs(inner)
     let innerKind = case inner
       of "int", "int32", "int16", "int8", "uint", "uint32", "uint16", "uint8": "int32"
@@ -114,6 +130,8 @@ proc classifyReturnType(retNode: NimNode): (string, string, bool, string) =
       of "seq[byte]", "openArray[byte]", "seq[uint8]", "openArray[uint8]": "bytes"
       else: "object"
     return (retRepr, "NimTsChannel<" & innerTs & ">", false, "channel:" & innerKind)
+  if retRepr == "NimTsChannel" or retRepr == "Channel":
+    return (retRepr, "NimTsChannel<any>", false, "channel:object")
   case retRepr
   of "int", "int32", "int16", "int8", "uint", "uint32", "uint16", "uint8":
     return (retRepr, mapNimTypeToTs(retRepr), false, "int32")
@@ -187,8 +205,8 @@ proc processExportTs*(body: NimNode): NimNode =
           newPragmas.add(p)
     procDef[4] = newPragmas
 
-    # Original proc is emitted completely untouched
-    result.add(procDef)
+    # Original proc is emitted with Channel rewritten to NimTsChannel to prevent system.Channel ambiguity
+    result.add(rewriteChannelNodes(procDef))
 
     # 2. Extract metadata
     let paramsNode = procDef[3]

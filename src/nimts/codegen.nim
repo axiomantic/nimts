@@ -71,6 +71,11 @@ proc mapNimTypeToTs*(nimType: string): string =
     if t.startsWith("NimTsChannel[") and t.endsWith("]"):
       let inner = t[13 .. ^2]
       return "NimTsChannel<" & mapNimTypeToTs(inner) & ">"
+    if t.startsWith("Channel[") and t.endsWith("]"):
+      let inner = t[8 .. ^2]
+      return "NimTsChannel<" & mapNimTypeToTs(inner) & ">"
+    if t == "Channel" or t == "NimTsChannel":
+      return "NimTsChannel<any>"
     return t
 
 proc generateDts*(meta: TsModuleMeta): string =
@@ -104,6 +109,8 @@ proc generateDts*(meta: TsModuleMeta): string =
   lines.add("  send(item: T): boolean;")
   lines.add("  [Symbol.asyncIterator](): AsyncIterator<T>;")
   lines.add("}")
+  lines.add("")
+  lines.add("export type Channel<T> = NimTsChannel<T>;")
   lines.add("")
 
   # Emit handle classes or interfaces
@@ -661,6 +668,8 @@ proc generateJs*(meta: TsModuleMeta, relativeWasmPath: string = ""): string =
   lines.add("  }")
   lines.add("}")
   lines.add("")
+  lines.add("export const Channel = NimTsChannel;")
+  lines.add("")
 
   # Emit procs with overload grouping and dispatching
   var procsByName = initOrderedTable[string, seq[TsProc]]()
@@ -734,6 +743,7 @@ proc generateJs*(meta: TsModuleMeta, relativeWasmPath: string = ""): string =
   lines.add("  initNimTsSync,")
   lines.add("  NimTsIterator,")
   lines.add("  NimTsChannel,")
+  lines.add("  Channel: NimTsChannel,")
   for name in procsByName.keys:
     lines.add("  " & name & ",")
   lines.add("};")

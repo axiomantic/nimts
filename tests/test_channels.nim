@@ -122,3 +122,53 @@ suite "NimTsChannel SPSC Ring Buffer Verification":
     check nimts_core_chan_send(chanId, cast[pointer](msg.cstring), msg.len.int32) == -1
 
     nimts_chan_destroy(chanId)
+
+  test "Channel[T] alias and newChannel[T]":
+    let ch = newChannel[int32](8)
+    check ch.capacity == 8
+    check ch.send(42'i32)
+    var val: int32
+    check ch.tryRecv(val)
+    check val == 42'i32
+
+  test "nimts_chan_get_raw_ptrs raw memory pointer extraction":
+    let chan = newChannel[int32](16)
+    check chan.send(100'i32)
+    check chan.send(200'i32)
+    let chanId = registerChannel(chan)
+    check chanId > 0
+
+    var headPtr: pointer = nil
+    var tailPtr: pointer = nil
+    var bufPtr: pointer = nil
+    var capVal: int32 = 0
+
+    let res = nimts_chan_get_raw_ptrs(chanId, addr headPtr, addr tailPtr, addr bufPtr, addr capVal)
+    check res == 0
+    check headPtr != nil
+    check tailPtr != nil
+    check bufPtr != nil
+    check capVal == 16
+
+    when not defined(js):
+      let headVal = cast[ptr uint32](headPtr)[]
+      let tailVal = cast[ptr uint32](tailPtr)[]
+      check headVal == 2'u32
+      check tailVal == 0'u32
+
+      let firstItem = cast[ptr int32](bufPtr)[]
+      check firstItem == 100'i32
+
+    # Core namespaced C-ABI alias
+    var headPtrCore: pointer = nil
+    var tailPtrCore: pointer = nil
+    var bufPtrCore: pointer = nil
+    var capValCore: int32 = 0
+    let resCore = nimts_core_chan_get_raw_ptrs(chanId, addr headPtrCore, addr tailPtrCore, addr bufPtrCore, addr capValCore)
+    check resCore == 0
+    check headPtrCore == headPtr
+    check tailPtrCore == tailPtr
+    check bufPtrCore == bufPtr
+    check capValCore == 16
+
+    nimts_chan_destroy(chanId)

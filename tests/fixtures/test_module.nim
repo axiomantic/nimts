@@ -95,6 +95,12 @@ proc streamNumbers*(count: int32): NimTsChannel[int32] {.exportts.} =
     discard ch.send(i)
   return ch
 
+proc streamIdiomaticChannel*(count: int32): Channel[int32] {.exportts.} =
+  let ch = newChannel[int32](16)
+  for i in 1 .. count:
+    discard ch.send(i * 10)
+  return ch
+
 proc audioInit*(rate: int32): int32 {.exportts(module = "audio").} =
   rate * 2
 
