@@ -18,10 +18,11 @@ NimTS enables writing high-performance WebAssembly libraries in Nim with natural
 ## Key Highlights
 
 - ⚡ **Zero-Overhead `{.exportts.}`**: Preserves native Nim signatures and behavior. Procs remain 100% callable by native Nim CLI tools, VST/CLAP audio plugins, and native unit tests with zero overhead.
+- 🧵 **Honest Off-Thread Web Worker Runtime (`@axiomantic/nimts/worker`)**: Run CPU/DSP algorithms in dedicated background threads via `spawnWorker` or Vite's `?worker` query. Transparent typed async proxying, automatic `Future[T]` awaiting, and true zero-copy `ArrayBuffer` detachment via Transferable objects.
 - 🔄 **Bidirectional Async Bridge**: Automatically bridges Nim `Future[T]` and JavaScript `Promise<T>` without blocking the main browser thread.
 - 🎛️ **Stateful Handles with GC**: Exports `ref object` instances as type-safe opaque handles with automatic garbage collection via JavaScript's `FinalizationRegistry` and deterministic manual `.dispose()`.
-- 🔁 **Closure Iterators & SPSC Channels**: Stream data from Nim closures as standard ES2015 `IterableIterator<T>` (`for..of`, `[...]`) and lock-free SPSC channels as `AsyncIterable<T>` (`for await..of`).
-- 📦 **Vite Plugin**: Import `.nim` files directly into your frontend code with on-the-fly compilation and hot module reloading.
+- 🔁 **Closure Iterators & SPSC Channels**: Stream data from Nim closures as standard ES2015 `IterableIterator<T>` (`for..of`, `[...]`) and lock-free SPSC channels (`Channel[T]` / `NimTsChannel[T]`) as `AsyncIterable<T>` (`for await..of`).
+- 📦 **Vite Plugin**: Import `.nim` and `.nim?worker` files directly into your frontend code with on-the-fly compilation and hot module reloading.
 - 🎵 **AudioWorklet & Worker Ready**: Supports streaming instantiation, pre-compiled `WebAssembly.Module` sharing, and raw `BufferSource` buffers.
 
 ---
@@ -102,13 +103,21 @@ proc setVolume*(engine: AudioEngine, vol: float32) {.exportts.} =
 # 5. Non-blocking async Future[T] -> JS Promise<T>
 proc computeAsync*(x: int32): Future[int32] {.async, exportts.} =
   return x * 42
+
+# 6. Idiomatic Channel[T] streaming -> AsyncIterable<T>
+proc streamEvents*(count: int32): Channel[string] {.exportts.} =
+  let ch = newChannel[string](32)
+  for i in 1 .. count:
+    discard ch.send("Event " & $i)
+  return ch
 ```
 
-### 3. Import directly in your frontend (`src/main.ts`)
+### 3. Consume in your frontend (`src/main.ts`)
+
+#### Pattern A: Direct In-Thread WASM Execution
 
 ```typescript
 // src/main.ts
-// Direct import from the .nim file — no manual compilation needed!
 import {
   initNimTs,
   addNumbers,
@@ -116,7 +125,8 @@ import {
   processData,
   createEngine,
   setVolume,
-  computeAsync
+  computeAsync,
+  streamEvents
 } from './engine.nim';
 
 // Initialize the WebAssembly module
@@ -137,6 +147,43 @@ engine.dispose(); // Explicit release, or automatic GC via FinalizationRegistry
 
 // Async Future[T] seamlessly awaited as Promise<T>
 const result = await computeAsync(10); // 420
+
+// Stream from Channel[T] via native for-await
+for await (const event of streamEvents(3)) {
+  console.log(event); // "Event 1", "Event 2", "Event 3"
+}
+```
+
+#### Pattern B: Off-Thread Web Worker with Zero-Copy Transfers (`@axiomantic/nimts/worker`)
+
+For heavy DSP, physics simulations, or background data crunching, run entirely off the UI thread:
+
+```typescript
+// Import directly as a Web Worker using Vite's ?worker query
+import EngineWorker from './engine.nim?worker';
+
+// Or spawn manually:
+// import { spawnWorker } from '@axiomantic/nimts/worker';
+// const worker = await spawnWorker('./engine.js');
+
+const worker = await new EngineWorker();
+
+// 1. Transparent async RPC proxy
+const sum = await worker.addNumbers(10, 32); // 42
+const asyncRes = await worker.computeAsync(10); // 420
+
+// 2. Zero-Copy buffer transfer (caller buffer is detached and transferred)
+const audioBuffer = new Uint8Array([0x00, 0xAA, 0xFF]);
+const processed = await worker.processData(audioBuffer);
+// audioBuffer.byteLength is now 0 (transferred with zero copy!)
+
+// 3. Off-thread channel streaming via MessagePort
+for await (const event of worker.streamEvents(3)) {
+  console.log('Worker event:', event);
+}
+
+// 4. Terminate cleanly when finished
+await worker.terminate();
 ```
 
 ---

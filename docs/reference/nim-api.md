@@ -77,7 +77,13 @@ Distinct type wrapping a `HandleId` for closure iterators. Automatically managed
 
 ## Channels (`nimts/channels`)
 
-Lock-free circular SPSC queue with cross-platform targets (WASM-native ring buffer and JS event-loop fallback).
+Lock-free circular SPSC queue with a WASM-native ring buffer for high-throughput streaming.
+
+### `type Channel*[T] = NimTsChannel[T]`
+Idiomatic type alias for `NimTsChannel[T]` enabling clean, standard Nim syntax.
+
+### `newChannel[T](capacity: int = 64): Channel[T]`
+Convenience constructor alias for `newNimTsChannel[T]`. Creates a new SPSC bounded channel with power-of-two capacity (default: 64).
 
 ### `newNimTsChannel[T](capacity: int = 64): NimTsChannel[T]`
 Creates a new SPSC bounded channel with power-of-two capacity (default: 64).
@@ -93,6 +99,18 @@ Asynchronously awaits the next available item from the channel.
 
 ### `close[T](ch: NimTsChannel[T])`
 Closes the channel, notifying consumers that no further items will be produced.
+
+### `nimts_chan_get_raw_ptrs(chanPtr, headPtr, tailPtr, bufPtr, capPtr)`
+```nim
+proc nimts_chan_get_raw_ptrs*(
+  chanPtr: pointer,
+  headPtr: ptr int32,
+  tailPtr: ptr int32,
+  bufPtr: ptr pointer,
+  capPtr: ptr int32
+) {.exportc, cdecl.}
+```
+Low-level C-ABI entry point exposing the raw linear memory offsets of the channel's `head`, `tail`, circular element buffer, and `capacity`. Enables zero-overhead shared memory synchronization with JavaScript `SharedArrayBuffer` and `Atomics`.
 
 ---
 

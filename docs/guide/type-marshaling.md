@@ -19,7 +19,7 @@ NimTS handles data conversion between Nim and TypeScript through compile-time co
 | `object`, `tuple` | `interface` | Automatic JSON serialization / deserialization |
 | `Future[T]` | `Promise<T>` | Bidirectional non-blocking `PromiseId` bridge |
 | `NimTsIterator[T]` | `NimTsIterator<T>` (`IterableIterator<T>`) | Closure iterator handle stepping via monotonic slot registry |
-| `NimTsChannel[T]` | `NimTsChannel<T>` (`AsyncIterable<T>`) | Lock-free SPSC circular queue with backpressure |
+| `Channel[T]` / `NimTsChannel[T]` | `NimTsChannel<T>` (`AsyncIterable<T>`) | Lock-free SPSC circular queue with backpressure |
 
 ---
 
@@ -105,3 +105,27 @@ In TypeScript:
 const result: bigint = combineIds(1000000000000n, 2000000000000n);
 console.log(result); // 3000000000000n
 ```
+
+---
+
+## SPSC Channels (`Channel[T]` / `NimTsChannel[T]`)
+
+For asynchronous streaming between Nim and TypeScript, NimTS exports lock-free single-producer single-consumer circular buffers as ES2018 `AsyncIterable<T>`:
+
+```nim
+proc streamTelemetry*(): Channel[float32] {.exportts.} =
+  let ch = newChannel[float32](64)
+  for i in 0 ..< 10:
+    discard ch.send(i.float32 * 0.1'f32)
+  return ch
+```
+
+In TypeScript, iterate asynchronously with `for await`:
+
+```typescript
+for await (const sample of streamTelemetry()) {
+  console.log("Telemetry sample:", sample);
+}
+```
+
+The idiomatic `type Channel*[T] = NimTsChannel[T]` and `newChannel[T]()` allow writing clean, standard Nim code while compiling directly to the high-performance WASM ring buffer.

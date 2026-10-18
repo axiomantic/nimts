@@ -116,3 +116,86 @@ for await (const event of channel) {
 - **`close(): void`**: Closes the channel.
 - **`[Symbol.asyncIterator]()`**: Enables native JavaScript `for await..of` iteration.
 
+---
+
+## Web Worker Client Runtime (`@axiomantic/nimts/worker`)
+
+The worker runtime hosts WebAssembly modules in background threads (browser Web Workers or `node:worker_threads`) and proxies function invocations asynchronously.
+
+```typescript
+import { spawnWorker, extractTransfers, type WorkerClient } from '@axiomantic/nimts/worker';
+```
+
+### `spawnWorker<T>(moduleOrUrl: any, options?: SpawnWorkerOptions): Promise<WorkerClient<T>>`
+
+Spawns an isolated WebWorker or `worker_threads` worker, initializes the compiled NimTS module, and returns a typed proxy client.
+
+```typescript
+const worker = await spawnWorker<MyExports>('./engine.js', {
+  wasmPath: '/wasm/engine.wasm',
+  transferBuffers: true
+});
+```
+
+### `SpawnWorkerOptions`
+
+```typescript
+export interface SpawnWorkerOptions {
+  /** Path or URL to the .wasm binary */
+  wasmPath?: string | URL;
+
+  /** Pre-compiled WebAssembly.Module */
+  wasmModule?: WebAssembly.Module;
+
+  /** WebAssembly binary bytes */
+  wasmBytes?: BufferSource;
+
+  /** Options forwarded to module initNimTs(opts) */
+  initOptions?: Record<string, any>;
+
+  /** Underlying Worker constructor options */
+  workerOptions?: any;
+
+  /** Automatically detach and transfer ArrayBuffer / TypedArray instances (default: true) */
+  transferBuffers?: boolean;
+}
+```
+
+### `WorkerClient<T>` Interface
+
+A transparent dynamic proxy wrapping all exported functions on `T`:
+
+- **Transparent Promise Wrapping**: Every exported synchronous proc `(...args) => R` becomes an asynchronous method `(...args) => Promise<R>`.
+- **Automatic `Future[T]` Awaiting**: Procs returning Nim `Future[T]` are awaited off-thread inside the worker, settling the caller's Promise with the unwrapped value or rejecting on exception.
+- **Dual Promise & `AsyncIterable` Streaming**: Procs returning `Channel[T]` or `NimTsChannel[T]` stream items across a dedicated `MessagePort`. The returned call object can be consumed via `for await (const chunk of worker.stream())` or directly awaited as an aggregated array with `await worker.stream()`.
+- **`terminate(): Promise<void>`**: Cleanly terminates the worker thread, closes communication ports, and rejects any pending RPC calls with `'Worker has been terminated'`.
+- **`readonly isTerminated: boolean`**: Flag indicating whether the worker has been terminated.
+- **`readonly rawWorker: Worker`**: Direct access to the underlying platform `Worker` instance.
+
+### Zero-Copy Buffer Transfers
+
+By default (`transferBuffers: true`), any argument or return value containing an `ArrayBuffer` or `TypedArray` backing buffer is automatically collected via `extractTransfers` and included in the `postMessage` transfer list.
+
+> [!IMPORTANT]
+> When a buffer is transferred, its memory ownership moves to the recipient thread and the sender's buffer is **detached** (`byteLength` becomes 0). This eliminates memory copying overhead and provides maximum throughput for large audio DSP blocks and binary streams. If you need to keep the sender's buffer intact, pass `{ transferBuffers: false }` or `.slice()` the buffer before passing.
+
+### `extractTransfers(val: unknown, set?: Set<ArrayBuffer>): ArrayBuffer[]`
+
+Recursively inspects an object, array, or primitive and extracts all unique `ArrayBuffer` and `TypedArray.buffer` references suitable for the `postMessage` transfer list.
+
+### Vite `?worker` Query Integration
+
+When using `@axiomantic/nimts/vite`, importing any `.nim` file with `?worker` emits an instantiable Worker class:
+
+```typescript
+import EngineWorker from './engine.nim?worker';
+
+// Instantiates and spawns the worker client:
+const worker = await new EngineWorker();
+// Or using static helper:
+// const worker = await EngineWorker.spawn();
+
+const result = await worker.addNumbers(10, 20); // 30
+await worker.terminate();
+```
+
