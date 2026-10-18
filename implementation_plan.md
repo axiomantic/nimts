@@ -169,3 +169,31 @@ For all parallel development tracks:
   - *Verification*: GitHub Actions CI passes 100% green across all 4 OS/Node matrix combinations (Ubuntu/macOS, Node 20/22).
   - *Weave*: `vine gate && vine weave` [WOVEN]
 
+### Phase 6: Honest WebWorkers & Lock-Free Channels (Zero-Lie Concurrency)
+- [ ] **Task 6.1: Idiomatic Channel[T] Alias & Shared-Buffer SPSC Atomics** (`nimts-architect`)
+  - *Strand*: `strand/task-6-1-channel-atomics`
+  - *Provider*: `src/nimts/channels.nim`, `src/nimts.nim`, `src/nimts/macros.nim`, `src/nimts/codegen.nim`
+  - *Deliverables*:
+    - Export `Channel*[T] = NimTsChannel[T]` and `proc newChannel*[T](capacity: int = DefaultChannelCapacity): Channel[T]` in `nimts.nim` and `channels.nim` so users write idiomatic `Channel[T]` without `NimTsChannel` prefix.
+    - Support `Channel[T]` seamlessly in `macros.nim` return and parameter classification.
+    - Add C-ABI export `nimts_chan_get_raw_ptrs(chanId: int32, headPtr: ptr pointer, tailPtr: ptr pointer, bufPtr: ptr pointer, capPtr: ptr int32)` to enable direct shared memory mapping with `SharedArrayBuffer` / `Atomics`.
+  - *Verification*: `nimble test` verifies `Channel[T]` native and WASM builds.
+  - *Weave*: `vine gate && vine weave`
+
+- [ ] **Task 6.2: spawnWorker Client & WebWorker Runtime** (`nimts-implementer`)
+  - *Strand*: `strand/task-6-2-spawn-worker`
+  - *Provider*: `ts/worker.ts`, `package.json`, `ts/vite-plugin-nimts.ts`, `tests/test_worker.test.ts`
+  - *Deliverables*:
+    - Implement `spawnWorker(moduleOrUrl, options?: SpawnWorkerOptions)` in `ts/worker.ts` (exported as `nimts/worker` in `package.json`).
+    - Every exported proc is projected as a typed `Promise<T>` on the main thread (honest async).
+    - If the worker method returns a `Future[T]`, the worker awaits it and sends the settled value; exceptions reject the main thread Promise.
+    - Support Transferable Objects: ArrayBuffer and TypedArray arguments are transferred with zero copies when specified or detected.
+    - Support Vite's `?worker` query parameter in `ts/vite-plugin-nimts.ts` (`import MyWorker from './compute.nim?worker'`).
+    - Channel streaming over worker boundary: when a worker proc returns `Channel[T]`, chunks are pumped to the main thread `AsyncIterable`.
+  - *Verification*: Vitest suite `tests/test_worker.test.ts` verifies off-thread compute, Future resolution, and Transferable memory passing.
+  - *Weave*: `vine gate && vine weave`
+
+- [ ] **Task 6.3: End-to-End Verification & Matrix CI Gate** (`nimts-orchestrator`)
+  - *Verification*: `npm test`, `nimble test`, `npm run docs:build`, `npm pack --dry-run`, and GitHub Actions CI matrix all 100% green.
+
+
