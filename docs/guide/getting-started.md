@@ -122,8 +122,8 @@ NimTS supports two execution patterns depending on the computational cost of you
 2. **Off-Thread Web Worker Mode (`from './synth.nim?worker'`)**: Spawns an isolated background Web Worker on a dedicated OS thread. Best for heavy algorithms, physics simulations, audio rendering, or ML inference.
 
 > [!WARNING]
-> **No Fake Async / Main Thread Blocking**  
-> In WebAssembly, calling a function on the main UI thread executes synchronously on the browser's JavaScript event loop. Even if a Nim procedure returns a `Future[T]` (bridged to a JS `Promise<T>`), CPU-intensive computation on the main thread **will freeze the browser window, drop animation frames, and lock user input**. For any non-trivial computation (> 1ms), always use the `?worker` syntax to run on a true background thread!
+> **WebAssembly Threading & UI Blocking**  
+> In WebAssembly, calling a function on the main UI thread executes synchronously on the browser's JavaScript event loop. Even if a Nim procedure returns a `Future[T]` (bridged to a JS `Promise<T>`), CPU-intensive computation on the main thread will block the browser window, drop animation frames, and delay user interactions. For computationally intensive workloads, use the `?worker` syntax to run on a background thread.
 
 #### Example: Consuming Both Patterns (`src/main.ts`)
 
@@ -175,7 +175,7 @@ engine.dispose(); // Explicit deterministic cleanup
 // -------------------------------------------------------------------------
 const worker = await SynthWorker.spawn();
 
-// Calls the exact same Nim function off-thread; returns an honest Promise
+// Calls the exact same Nim function off-thread; returns a Promise
 const workerSum = await worker.addNumbers(17, 25);
 console.log('Worker async result:', workerSum); // 42
 
@@ -248,17 +248,16 @@ static:
 
 ### 2. Compile to WebAssembly (Choosing Your Backend)
 
-Compile the Nim file into a WebAssembly binary. You can choose between two compilation backends depending on your deployment target:
+Compile the Nim file into a WebAssembly binary. NimTS supports two compilation backends:
+
+- [**Standalone Micro-WASM Backend (Default)**](./backend-standalone.md): Uses LLVM Clang, `wasm-ld`, and `wasi-sysroot`. Produces minimal, zero-bloat WASM binaries (~50–250 kB) ideal for AudioWorklets, Web Workers, and lightweight web apps.
+- [**Emscripten Runtime Backend**](./backend-emscripten.md): Uses `emcc` with a virtual filesystem (FS), POSIX libc shims, and modularized ES6 output. Ideal when your code wraps third-party C libraries expecting file I/O or full POSIX support.
 
 ```bash
 # 1. Standalone micro-WASM (Default)
-# Uses LLVM clang + wasm-ld + wasi-sysroot. Produces minimal, zero-bloat WASM
-# ideal for AudioWorklets, Web Workers, and lightweight web apps:
 nimts compile synth.nim synth.wasm
 
 # 2. Emscripten Runtime Backend
-# Uses emcc with virtual filesystem (FS), POSIX shims, and modularized ES6 output.
-# Ideal if your code depends on legacy C libraries expecting file I/O or full POSIX libc:
 nimts compile synth.nim synth.wasm --backend:emscripten
 ```
 

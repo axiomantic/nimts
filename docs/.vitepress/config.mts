@@ -48,6 +48,13 @@ export default defineConfig({
         ]
       },
       {
+        text: "Compilation Backends",
+        items: [
+          { text: "Standalone Micro-WASM (Default)", link: "/guide/backend-standalone" },
+          { text: "Emscripten Runtime", link: "/guide/backend-emscripten" }
+        ]
+      },
+      {
         text: "API Reference",
         items: [
           { text: "Nim Macro & Bridge API", link: "/reference/nim-api" },
