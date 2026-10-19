@@ -35,6 +35,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Comprehensive Memory & GC Guide**:
   - Authored [Memory Management, Stateful Handles & Garbage Collection](docs/guide/stateful-handles.md) detailing ARC/ORC destructors, zero GC pause guarantees, ephemeral call lifecycles, and leak hazard mitigations.
 - Add multi-repo paths, linker flags discovery, and manifest export in vite-plugin-nimts
+- Add first-class WebAudio AudioWorklet support with exporttsWorklet pragma and .nim?worklet Vite plugin query
 
 ### Changed
 - **Honest Concurrency**: Purged single-threaded fake async/await heuristic (`poll()` loop) in favor of true off-thread Web Worker execution.
