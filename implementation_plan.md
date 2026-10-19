@@ -242,7 +242,7 @@ For all parallel development tracks:
   - *Verification*: `npm run test:nim-js` and `npm test` passing 100% green.
   - *Weave*: Woven in commit `2665127` and pushed to `origin/main`.
 
-- [ ] **Task 7.3: WebGPU Compute & Dual-Tier Architecture Guides & Documentation** (`nimts-implementer`)
+- [x] **Task 7.3: WebGPU Compute & Dual-Tier Architecture Guides & Documentation** (`nimts-implementer`)
   - *Strand*: `strand/task-7-3-webgpu-dual-tier-docs`
   - *Provider*: `docs/guide/webgpu-compute.md`, `docs/guide/dual-tier-nim.md`, `docs/.vitepress/config.mts`, `README.md`
   - *Deliverables*:
@@ -251,7 +251,42 @@ For all parallel development tracks:
     - Update VitePress navigation sidebar in `docs/.vitepress/config.mts`.
     - Update `README.md` with WebGPU and Dual-Tier Nim highlights.
   - *Verification*: `npm run docs:build` passes cleanly with 0 errors.
+  - *Weave*: Woven in commit `ae8050c` and pushed to `origin/main`.
+
+## Phase 8: Real-Time Extensions (AudioWorklet, Pinned Views, Binary Arrays & Multi-Repo)
+
+- [ ] **Task 8.1: Binary TypedArray ABI Marshaling for `seq[T]` / `openArray[T]`** (`nimts-architect`)
+  - *Strand*: `strand/task-8-1-binary-typedarrays`
+  - *Lock*: `rhizo lock file:src/nimts/codegen.nim 1200 --fencing`
+  - *Provider*: `src/nimts/codegen.nim`, `src/nimts/macros.nim`, `ts/runtime.ts`
+  - *Consumer / Call-Site*: Wire numeric `seq[T]` and `openArray[T]` (`byte`/`uint8`, `int8`, `int16`, `uint16`, `int32`, `uint32`, `float32`, `float64`) across the C-ABI boundary using raw binary `TypedArray`s in both argument and return positions instead of JSON text serialization.
+  - *Verification*: `nimble test` and `npm test` verifying direct TypedArray serialization and zero-copy performance.
   - *Weave*: `vine gate && vine weave`
+
+- [ ] **Task 8.2: Zero-Copy Pinned TypedArray Views (`NimTsView[T]` / `{.exporttsView.}`)** (`nimts-architect`)
+  - *Strand*: `strand/task-8-2-pinned-views`
+  - *Lock*: `rhizo lock file:src/nimts/types.nim 1200 --fencing`
+  - *Provider*: `src/nimts/types.nim`, `src/nimts/codegen.nim`, `ts/runtime.ts`
+  - *Consumer / Call-Site*: Provide `NimTsView*[T]` type and `initNimTsView*[T]` constructors in Nim. Export `(ptr: uint32, len: uint32)` descriptor. In TypeScript, project directly as `TypedArray` view over `wasmMemory.buffer` with dynamic re-attachment on `memory.grow`.
+  - *Verification*: Unit tests in `tests/test_memory.nim` and `tests/test_runtime.test.ts`.
+  - *Weave*: `vine gate && vine weave`
+
+- [ ] **Task 8.3: First-Class WebAudio AudioWorklet Support (`@axiomantic/nimts/worklet` & `?worklet`)** (`nimts-implementer`)
+  - *Strand*: `strand/task-8-3-audioworklet`
+  - *Lock*: `rhizo lock file:ts/worklet.ts 1200 --fencing`
+  - *Provider*: `src/nimts/macros.nim`, `ts/worklet.ts`, `ts/vite-plugin-nimts.ts`
+  - *Consumer / Call-Site*: Add `{.exportts, audioProcess.}` pragma. Generate `AudioWorkletProcessor` subclass module instantiating WASM in `AudioWorkletGlobalScope`, handling `port.onmessage` RPC, and running `process()` with zero-copy `Float32Array` views. Implement `NimTsWorkletClient<T>` for the main thread with async RPC and event subscriptions.
+  - *Verification*: Vitest test suite in `tests/test_worklet.test.ts`.
+  - *Weave*: `vine gate && vine weave`
+
+- [ ] **Task 8.4: Multi-Repo Nimble Path & Linker Flag Discovery in `vite-plugin-nimts`** (`nimts-implementer`)
+  - *Strand*: `strand/task-8-4-vite-multi-repo`
+  - *Lock*: `rhizo lock file:ts/vite-plugin-nimts.ts 1200 --fencing`
+  - *Provider*: `ts/vite-plugin-nimts.ts`
+  - *Consumer / Call-Site*: Support `nimFlags`, `nimPaths` (`--path:...`), `clangFlags` (`--passC:...`), `linkerFlags` (`--passL:...`), and `cwd` options. Automatically export all symbols referenced in `_nimts_exports.json` manifest via `-Wl,--export=...`. Track transitive `.nim` imports so file modifications trigger Vite HMR.
+  - *Verification*: Vitest unit tests in `tests/test_vite_plugin.test.ts`.
+  - *Weave*: `vine gate && vine weave`
+
 
 
 
