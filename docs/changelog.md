@@ -10,6 +10,21 @@ For release artifacts, pre-packaged tarballs, and git release tags, visit [GitHu
 
 ---
 
+## [0.2.1] - 2026-10-19
+
+### Added
+- **LaTeX Math Rendering**: Enabled client-side LaTeX and formula rendering across the VitePress documentation using `markdown-it-mathjax3` (`markdown: { math: true }`).
+
+### Documentation & Architecture
+- **Async & Threading Architecture**: Rewrote `docs/guide/async-bridge.md` to establish clear, forward-facing technical principles:
+  - Synchronous execution of standard WebAssembly on the caller's thread with sub-nanosecond register speed.
+  - Dedicated background execution via Web Workers (`?worker` / `@axiomantic/nimts/worker`) and AudioWorklet for CPU/DSP computation.
+  - Clean separation of concerns with TypeScript managing browser I/O (`fetch`, timers) and passing buffers directly to Nim.
+  - Reframed `Future[T]` as a low-level FFI callback bridge for host resumption, purging misleading in-thread cooperative coroutine claims.
+- **Terminology Cleanliness**: Scrubbed internal conversational jargon from user-facing guides and updated navigation to "Async & Threading".
+
+---
+
 ## [0.2.0] - 2026-10-18
 
 ### Added
