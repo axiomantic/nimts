@@ -19,6 +19,24 @@ export interface NimTsExports {
   [key: string]: any;
 }
 
+export type TypedArray =
+  | Uint8Array
+  | Int8Array
+  | Uint16Array
+  | Int16Array
+  | Uint32Array
+  | Int32Array
+  | Float32Array
+  | Float64Array
+  | BigUint64Array
+  | BigInt64Array;
+
+export type TypedArrayConstructor<T extends TypedArray = TypedArray> = {
+  new (buffer: ArrayBufferLike, byteOffset?: number, length?: number): T;
+  new (length: number): T;
+  BYTES_PER_ELEMENT: number;
+};
+
 export class GpuBufferSlice<T = any> {
   readonly pointer: number;
   readonly byteLength: number;
@@ -157,9 +175,38 @@ export class NimTsRuntime {
     return _globalTextDecoder ? _globalTextDecoder.decode(bytes) : _utf8Decode(bytes);
   }
 
+  public readTypedArray<T extends TypedArray>(
+    ptr: number,
+    len: number,
+    ctor: TypedArrayConstructor<T>
+  ): T {
+    if (!ptr || len <= 0) return new ctor(0);
+    const byteLen = len * ctor.BYTES_PER_ELEMENT;
+    const memBuffer = this.getMemory().buffer;
+    if (ptr % ctor.BYTES_PER_ELEMENT === 0) {
+      return (new ctor(memBuffer, ptr, len) as any).slice() as T;
+    }
+    const copy = new Uint8Array(byteLen);
+    copy.set(new Uint8Array(memBuffer, ptr, byteLen));
+    return new ctor(copy.buffer, 0, len);
+  }
+
+  public passTypedArray<T extends TypedArray>(
+    buf: T | ArrayLike<number> | ArrayBuffer,
+    ctor: TypedArrayConstructor<T>
+  ): { ptr: number; len: number } {
+    if (!this.exports) throw new Error('nimts module not initialized.');
+    const typed = buf instanceof (ctor as any) ? (buf as T) : new ctor(buf as any);
+    const byteLen = (typed as any).byteLength;
+    const ptr = this.exports.nimts_alloc(byteLen);
+    new Uint8Array(this.getMemory().buffer, ptr, byteLen).set(
+      new Uint8Array((typed as any).buffer, (typed as any).byteOffset, byteLen)
+    );
+    return { ptr, len: (typed as any).length };
+  }
+
   public readBytes(ptr: number, len: number): Uint8Array {
-    if (!ptr || len <= 0) return new Uint8Array(0);
-    return new Uint8Array(new Uint8Array(this.getMemory().buffer, ptr, len));
+    return this.readTypedArray(ptr, len, Uint8Array);
   }
 
   public passString(str: string): { ptr: number; len: number } {
@@ -171,11 +218,7 @@ export class NimTsRuntime {
   }
 
   public passBytes(buf: Uint8Array | ArrayBuffer): { ptr: number; len: number } {
-    if (!this.exports) throw new Error('nimts module not initialized.');
-    const bytes = buf instanceof Uint8Array ? buf : new Uint8Array(buf);
-    const ptr = this.exports.nimts_alloc(bytes.length);
-    new Uint8Array(this.getMemory().buffer, ptr, bytes.length).set(bytes);
-    return { ptr, len: bytes.length };
+    return this.passTypedArray(buf, Uint8Array);
   }
 
   public free(ptr: number): void {
