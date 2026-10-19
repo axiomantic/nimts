@@ -29,48 +29,66 @@ const synthNode = new AudioWorkletNode(audioContext, 'dsp-processor', {
 
 ---
 
-## AudioWorklet Synchronous Initialization Pattern
+## First-Class AudioWorklet Support (`.nim?worklet` & `@axiomantic/nimts/worklet`)
 
-AudioWorklet processors execute within an `AudioWorkletGlobalScope` where:
-1. Processors are instantiated synchronously in the worklet thread constructor before the audio render loop starts.
-2. Standard Web APIs like `fetch`, and in many browser engines `TextEncoder` and `TextDecoder`, are undefined or restricted.
+NimTS provides **first-class WebAudio AudioWorklet generation**, allowing you to write your DSP synthesis or audio processing code directly in Nim and instantiate it with zero manual JavaScript glue.
 
-NimTS solves both constraints out of the box:
-- **`initNimTsSync({ wasmModule })`**: Instantiates synchronously via `new WebAssembly.Instance(wasmModule, importObject)`, calling `NimMain()` and `nimts_init()` synchronously so exports are immediately ready for `process()`.
-- **Pure-JS UTF-8 Fallbacks**: All string marshaling automatically falls back to bundled pure-JS UTF-8 encode and decode functions when `TextEncoder` or `TextDecoder` are absent in `AudioWorkletGlobalScope`, eliminating `ReferenceError` crashes.
+### Step 1: Write Your Audio DSP in Nim
 
-In your audio worklet processor script:
+Annotate your audio render callback with `{.exportts, audioProcess.}` or use `{.exporttsWorklet.}`:
+
+```nim
+# src/synth.nim
+import nimts
+
+var gPhase: float32 = 0.0'f32
+var gFrequency: float32 = 440.0'f32
+
+proc audioProcess*(output: openArray[float32], sampleRate: float32): int32 {.exportts, audioProcess.} =
+  let phaseInc = (2.0'f32 * 3.14159265'f32 * gFrequency) / sampleRate
+  for i in 0 ..< output.len:
+    output[i] = sin(gPhase)
+    gPhase += phaseInc
+    if gPhase >= 2.0'f32 * 3.14159265'f32:
+      gPhase -= 2.0'f32 * 3.14159265'f32
+  return 1
+
+# Additional RPC controls accessible from the main thread
+proc setFrequency*(freq: float32) {.exportts.} =
+  gFrequency = freq
+```
+
+### Step 2: Instant Vite Worklet Node (`.nim?worklet`)
+
+With the Vite plugin, simply import `.nim?worklet`:
 
 ```typescript
-// dsp-processor.ts
-import { initNimTsSync, processAudioBlock } from './engine.js';
+import { createWorklet } from './synth.nim?worklet';
 
-class NimDspProcessor extends AudioWorkletProcessor {
-  private initialized = false;
+const audioContext = new AudioContext();
+const synthNode = await createWorklet(audioContext);
 
-  constructor(options: AudioWorkletNodeOptions) {
-    super();
+// Connect directly into the WebAudio audio graph
+synthNode.connect(audioContext.destination);
 
-    // Synchronous instantiation guaranteed before the first process() render block
-    if (options.processorOptions?.wasmModule) {
-      initNimTsSync({ wasmModule: options.processorOptions.wasmModule });
-      this.initialized = true;
-    }
-  }
+// Call exported Nim RPC methods over the worklet message port
+await synthNode.setFrequency(880.0);
+```
 
-  process(inputs: Float32Array[][], outputs: Float32Array[][], parameters: Record<string, Float32Array>): boolean {
-    if (!this.initialized) return true;
+### Manual Usage: `@axiomantic/nimts/worklet`
 
-    const outputChannel = outputs[0][0];
+If you are not using Vite, you can use the `@axiomantic/nimts/worklet` runtime package directly:
 
-    // High-speed, zero-allocation DSP processing in Nim
-    processAudioBlock(outputChannel);
+```typescript
+import { createNimTsWorklet } from '@axiomantic/nimts/worklet';
 
-    return true;
-  }
-}
+const synthClient = await createNimTsWorklet({
+  audioContext,
+  wasmPath: '/synth.wasm'
+});
 
-registerProcessor('dsp-processor', NimDspProcessor);
+synthClient.connect(audioContext.destination);
+await synthClient.setFrequency(523.25);
 ```
 
 Because `initNimTsSync` accepts `wasmModule: WebAssembly.Module`, the AudioWorklet initializes synchronously without network calls, microtask scheduling races, or buffer compilation delays.

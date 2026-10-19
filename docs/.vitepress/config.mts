@@ -19,9 +19,9 @@ export default defineConfig({
       { text: "Vite Plugin", link: "/guide/vite-plugin" },
       { text: "Changelog", link: "/changelog" },
       {
-        text: "v0.1.0",
+        text: "v0.2.0",
         items: [
-          { text: "v0.1.0 (Current Release)", link: "/" },
+          { text: "v0.2.0 (Current Release)", link: "/" },
           { text: "Changelog & Release Notes", link: "/changelog" },
           { text: "GitHub Releases", link: "https://github.com/axiomantic/nimts/releases" },
           { text: "NPM Package", link: "https://www.npmjs.com/package/@axiomantic/nimts" },

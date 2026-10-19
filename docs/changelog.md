@@ -6,9 +6,34 @@ For release artifacts, pre-packaged tarballs, and git release tags, visit [GitHu
 
 ---
 
-## [Unreleased] (Upcoming v0.2.0)
+## [Unreleased]
+
+---
+
+## [0.2.0] - 2026-10-18
 
 ### Added
+- **First-Class WebAudio AudioWorklet Support (`@axiomantic/nimts/worklet` & `.nim?worklet`)**:
+  - Implemented `{.exporttsWorklet.}` and `{.exportts, audioProcess.}` pragma macros in `src/nimts/macros.nim` and `src/nimts/codegen.nim`.
+  - Added `@axiomantic/nimts/worklet` runtime with `NimTsAudioWorkletProcessor` supporting WASI snapshot preview 1 mocks, zero-copy `Float32Array` audio render callbacks, and parameter automation.
+  - Implemented `createWorkletProcessorScript` bundle code generator for inline Blob URL worklet script loading.
+  - Implemented strongly typed `NimTsWorkletClient<T>` with thenable-safe RPC proxy, event subscriptions (`.on()`), and WebAudio graph routing (`.connect()`).
+  - Added `.nim?worklet` Vite query support in `vite-plugin-nimts` generating `createWorklet` factory and `NimWorkletNode`.
+- **Zero-Copy Pinned TypedArray Views (`NimTsView[T]`)**:
+  - Implemented `NimTsView*[T]` in `src/nimts/types.nim` and `initNimTsView` / `newNimTsView` in `src/nimts/memory.nim`, exposing live zero-copy views into Nim data structures across the C-ABI boundary via `packNimTsViewResult`.
+  - Added `NimTsView` class and `createNimTsView` proxy factory in `ts/runtime.ts` and `src/nimts/codegen.nim`.
+  - Enabled direct array indexing (`view[i]`), slice/subarray operations, iterator support (`for..of`), and live bidirectional mutations between Nim and JavaScript/TypeScript without intermediate allocations or JSON serialization.
+  - Implemented dynamic detachment resilience: automatically detects WebAssembly `memory.grow()` reallocations and transparently re-binds the underlying TypedArray view to the new `ArrayBuffer`.
+  - Added `createView<T>(pointer, length, ctor)` helper method to `NimTsRuntime`.
+- **Binary TypedArray ABI Marshaling for `seq[T]` / `openArray[T]`**:
+  - Implemented raw binary TypedArray marshaling across the WASM C-ABI boundary for numeric slices (`openArray`/`seq` of `byte`/`uint8`, `int8`, `int16`, `uint16`, `int32`, `uint32`, `float32`, `float64`, `int64`, `uint64`).
+  - Completely bypassed JSON text serialization and string parsing for numeric collections, replacing them with direct binary pointer/length descriptor passing (`packBuffer`) and `.slice()` views over `wasmMemory.buffer`.
+  - Added `allocTypedArrayResult[T]` and `readTypedArray[T]` in `src/nimts/memory.nim` with zero intermediate allocations for `openArray[T]`.
+  - Added `readTypedArray` and `passTypedArray` in `ts/runtime.ts` and generated TypeScript / JavaScript glue wrappers.
+- **Multi-Repo & Linker Discovery in `vite-plugin-nimts`**:
+  - Added `nimPaths` (`--path:...`), `clangFlags` (`--passC:...`), `linkerFlags` (`--passL:...`), `cwd`, and `watchGlobs` plugin options.
+  - Automated export of symbols referenced in `_nimts_exports.json` manifest via `-Wl,--export=...` / wasm-ld.
+  - Added transitive `.nim` import and include dependency tracking for instant Vite HMR invalidation across local packages.
 - **Multi-Threaded Web Worker Runtime (`@axiomantic/nimts/worker`)**:
   - Implemented `spawnWorker(moduleUrl, options)` providing transparent async RPC proxying to background Web Workers.
   - Added Vite `?worker` query syntax support (`import SynthWorker from './synth.nim?worker'`) for effortless zero-config worker instantiation.

@@ -55,12 +55,31 @@ const sum = await worker.addNumbers(10, 20);
 console.log('Result from worker:', sum);
 ```
 
+### AudioWorklet Imports with `?worklet`
+
+You can import any Nim module directly as a WebAudio `AudioWorkletNode` using Vite's `?worklet` query parameter:
+
+```typescript
+// src/audio.ts
+import { createWorklet } from './dsp/synth.nim?worklet';
+
+const audioCtx = new AudioContext();
+const synth = await createWorklet(audioCtx);
+
+// Connect into WebAudio signal chain
+synth.connect(audioCtx.destination);
+
+// Call exported Nim RPC methods over the worklet message port
+await synth.setParam('cutoff', 2500);
+```
+
 ---
 
 ## Plugin Options
 
 `nimtsPlugin(options)` accepts the following configuration:
 
+```typescript
 export interface NimTsPluginOptions {
   /** Compilation backend: 'standalone' (default: clang + wasm-ld) or 'emscripten' (emcc) */
   backend?: 'standalone' | 'emscripten';
@@ -85,11 +104,35 @@ export interface NimTsPluginOptions {
 
   /** Additional flags passed to the Nim compiler, e.g. ['-d:danger', '--opt:speed'] */
   extraNimFlags?: string[];
+  nimFlags?: string[];
+
+  /** Additional search paths for the Nim compiler (--path:...), ideal for monorepos and multi-repo setups */
+  nimPaths?: string[];
+
+  /** Additional flags passed to clang compiler (--passC:...) */
+  clangFlags?: string[];
+
+  /** Additional flags passed to wasm-ld linker (--passL:...) */
+  linkerFlags?: string[];
+
+  /** Working directory for nim compilation */
+  cwd?: string;
+
+  /** Additional glob patterns to watch for HMR invalidation */
+  watchGlobs?: string[];
 
   /** Public directory where generated .wasm binaries are copied (default: 'public/wasm') */
   publicDir?: string;
 }
 ```
+
+### Multi-Repo & Monorepo Support
+
+When working across multiple repositories or packages (e.g. sharing core libraries like `rg2` or `green-rabbit`):
+- **`nimPaths`**: Automatically adds `--path:...` search flags to the Nim compiler so external dependencies resolve without needing local installation.
+- **Transitive Dependency Tracking**: The plugin recursively parses `import` and `include` statements in `.nim` files, invalidating the Vite HMR cache whenever upstream packages change.
+- **`watchGlobs`**: Configures custom watch glob patterns for external directories to trigger automatic recompilation.
+- **Automatic Linker Export Discovery**: Symbols recorded in `_nimts_exports.json` are automatically exported via `-Wl,--export=...` / wasm-ld, ensuring all C-ABI procedures are accessible to the runtime.
 
 ---
 

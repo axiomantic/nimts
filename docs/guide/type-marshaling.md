@@ -41,22 +41,70 @@ Memory allocated for passing input arguments is freed immediately in the wrapper
 
 ---
 
-## Binary Data & Buffers (`Uint8Array`)
+## Binary Data & TypedArray ABI (`Uint8Array`, `Float32Array`, etc.)
 
-For DSP audio frames, image pixels, and binary network protocols, `openArray[byte]` and `seq[byte]` map directly to JavaScript `Uint8Array`:
+NimTS provides **direct binary TypedArray ABI marshaling** for all numeric slices (`openArray[T]` and `seq[T]`), completely bypassing JSON serialization:
+
+| Nim Type | TypeScript TypedArray |
+| :--- | :--- |
+| `openArray[byte]`, `seq[byte]`, `seq[uint8]` | `Uint8Array` |
+| `openArray[int8]`, `seq[int8]` | `Int8Array` |
+| `openArray[int16]`, `seq[int16]` | `Int16Array` |
+| `openArray[uint16]`, `seq[uint16]` | `Uint16Array` |
+| `openArray[int32]`, `seq[int32]` | `Int32Array` |
+| `openArray[uint32]`, `seq[uint32]` | `Uint32Array` |
+| `openArray[float32]`, `seq[float32]` | `Float32Array` |
+| `openArray[float64]`, `seq[float64]` | `Float64Array` |
 
 ```nim
-proc invertBytes*(data: openArray[byte]): seq[byte] {.exportts.} =
-  result = newSeq[byte](data.len)
-  for i in 0 ..< data.len:
-    result[i] = data[i] xor 0xFF'u8
+# Direct numeric arrays pass and return at native speeds
+proc scaleFloats*(samples: openArray[float32], factor: float32): seq[float32] {.exportts.} =
+  result = newSeq[float32](samples.len)
+  for i in 0 ..< samples.len:
+    result[i] = samples[i] * factor
 ```
 
 In TypeScript:
 ```typescript
-const input = new Uint8Array([0x00, 0x55, 0xFF]);
-const output: Uint8Array = invertBytes(input);
-// output: Uint8Array [ 255, 170, 0 ]
+const input = new Float32Array([0.1, 0.5, 0.9]);
+const scaled = scaleFloats(input, 2.0); // Float32Array [ 0.2, 1.0, 1.8 ]
+```
+
+---
+
+## Zero-Copy Pinned Views (`NimTsView[T]`)
+
+When copying or allocating new buffers per call is too expensive (e.g. 60 FPS graphics, 44.1kHz audio buffers, or large tensor matrices), NimTS provides **zero-copy pinned views**:
+
+```nim
+import nimts
+
+var gAudioFrame: array[512, float32]
+
+# Expose a live view into the global buffer without allocation
+proc getAudioView*(): NimTsView[float32] {.exportts.} =
+  initNimTsView(addr gAudioFrame[0], gAudioFrame.len)
+
+proc processAudio*(view: NimTsView[float32]) {.exportts.} =
+  for i in 0 ..< view.len:
+    view[i] = view[i] * 0.95'f32
+```
+
+In TypeScript, `NimTsView<T>` behaves like a standard `TypedArray`:
+```typescript
+const view = getAudioView(); // Instance of NimTsView & Float32Array
+
+// 1. Array index access and live mutations
+console.log(view[0]);
+view[0] = 1.0; // Immediately mutates WASM linear memory zero-copy!
+
+// 2. Direct processing in Nim
+processAudio(view);
+console.log(view[0]); // 0.95
+
+// 3. Dynamic detachment resilience
+// If WebAssembly memory grows (memory.grow()), NimTsView automatically
+// re-binds to the new ArrayBuffer without throwing "detached ArrayBuffer" errors.
 ```
 
 ---

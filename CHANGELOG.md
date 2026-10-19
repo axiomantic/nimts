@@ -9,7 +9,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+---
+
+## [0.2.0] - 2026-10-18
+
 ### Added
+- **First-Class WebAudio AudioWorklet Support (`@axiomantic/nimts/worklet` & `.nim?worklet`)**:
+  - Implemented `{.exporttsWorklet.}` and `{.exportts, audioProcess.}` pragma macros in `src/nimts/macros.nim` and `src/nimts/codegen.nim`.
+  - Added `@axiomantic/nimts/worklet` runtime with `NimTsAudioWorkletProcessor` supporting WASI snapshot preview 1 mocks, zero-copy `Float32Array` audio render callbacks, and parameter automation.
+  - Implemented `createWorkletProcessorScript` bundle code generator for inline Blob URL worklet script loading.
+  - Implemented strongly typed `NimTsWorkletClient<T>` with thenable-safe RPC proxy, event subscriptions (`.on()`), and WebAudio graph routing (`.connect()`).
+  - Added `.nim?worklet` Vite query support in `vite-plugin-nimts` generating `createWorklet` factory and `NimWorkletNode`.
+- **Multi-Repo & Linker Discovery in `vite-plugin-nimts`**:
+  - Added `nimPaths` (`--path:...`), `clangFlags` (`--passC:...`), `linkerFlags` (`--passL:...`), `cwd`, and `watchGlobs` plugin options.
+  - Automated export of symbols referenced in `_nimts_exports.json` manifest via `-Wl,--export=...` / wasm-ld.
+  - Added transitive `.nim` import and include dependency tracking for instant Vite HMR invalidation across local packages.
 - **Zero-Copy Pinned TypedArray Views (`NimTsView[T]`)**:
   - Implemented `NimTsView*[T]` in `src/nimts/types.nim` and `initNimTsView` / `newNimTsView` in `src/nimts/memory.nim`, exposing live zero-copy views into Nim data structures across the C-ABI boundary via `packNimTsViewResult`.
   - Added `NimTsView` class and `createNimTsView` proxy factory in `ts/runtime.ts` and `src/nimts/codegen.nim`.
@@ -45,8 +59,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Authored [Emscripten Runtime Backend (`wasm32-unknown-emscripten`)](docs/guide/backend-emscripten.md) detailing `emcc` virtual filesystem (`FS`) and POSIX libc shims.
 - **Comprehensive Memory & GC Guide**:
   - Authored [Memory Management, Stateful Handles & Garbage Collection](docs/guide/stateful-handles.md) detailing ARC/ORC destructors, zero GC pause guarantees, ephemeral call lifecycles, and leak hazard mitigations.
-- Add multi-repo paths, linker flags discovery, and manifest export in vite-plugin-nimts
-- Add first-class WebAudio AudioWorklet support with exporttsWorklet pragma and .nim?worklet Vite plugin query
 
 ### Changed
 - **Honest Concurrency**: Purged single-threaded fake async/await heuristic (`poll()` loop) in favor of true off-thread Web Worker execution.

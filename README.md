@@ -18,11 +18,14 @@ Write high-performance WebAssembly in Nim with natural signatures, companion C-A
 ## Key Highlights
 
 - ⚡ **Zero-Overhead `{.exportts.}`**: Preserves native Nim signatures. Procs remain 100% callable by native Nim CLI tools, VST/CLAP audio plugins, and native unit tests with zero overhead.
+- 🚀 **Binary TypedArray ABI**: Direct binary packing for `seq[T]` and `openArray[T]` across all numeric types (`uint8..32`, `int8..32`, `float32..64`), completely eliminating JSON serialization overhead.
+- 📐 **Zero-Copy Pinned Views (`NimTsView[T]`)**: Direct Proxy-wrapped TypedArray views over WASM linear memory with bidirectional zero-copy mutations and dynamic recovery across `memory.grow()`.
+- 🔊 **WebAudio AudioWorklet (`@axiomantic/nimts/worklet` & `?worklet`)**: Run real-time Nim DSP audio rendering in dedicated high-priority audio threads with `{.exporttsWorklet.}` and `audioProcess`, zero-copy `Float32Array` rendering, and typed RPC proxy from the main thread.
 - 🧵 **Multi-Threaded Web Worker Runtime (`@axiomantic/nimts/worker`)**: Run CPU/DSP algorithms in dedicated background threads via `spawnWorker` or Vite's `?worker` query. Transparent typed async proxying, automatic `Future[T]` awaiting, and true zero-copy `ArrayBuffer` detachment via Transferable objects.
 - 🔄 **Bidirectional Async Bridge**: Automatically bridges Nim `Future[T]` and JavaScript `Promise<T>` without blocking the main browser thread.
 - 🎛️ **Stateful Handles with GC**: Exports `ref object` instances as type-safe opaque handles with automatic garbage collection via JavaScript's `FinalizationRegistry` and deterministic manual `.dispose()`.
 - 🔁 **Closure Iterators & SPSC Channels**: Stream data from Nim closures as standard ES2015 `IterableIterator<T>` (`for..of`) and lock-free SPSC channels (`Channel[T]`) as `AsyncIterable<T>` (`for await..of`).
-- 📦 **Vite Plugin**: Import `.nim` and `.nim?worker` files directly into your frontend code with background compilation and hot module reloading.
+- 📦 **Vite Plugin with Multi-Repo Support**: Import `.nim`, `.nim?worker`, and `.nim?worklet` files directly with background compilation, `nimPaths` monorepo resolution, transitive dependency tracking, and hot module reloading.
 - 🎮 **WebGPU Zero-Copy Storage Buffers**: Hardware-aligned 256-byte allocators (`nimts_alloc_aligned`) and `GpuBufferSlice[T]` for direct, zero-copy `device.queue.writeBuffer` transfers into WebGPU compute pipelines.
 - 🏛️ **Dual-Tier Nim Architecture (`nimts/js_client`)**: Write reactive DOM UI in `nim js` and heavy compute in `nim wasm`, communicating seamlessly with zero handwritten JS/TS glue.
 
