@@ -84,11 +84,23 @@ suite "NimTS Code Generation Verification":
     check mapNimTypeToTs("cstring") == "string"
     check mapNimTypeToTs("openArray[byte]") == "Uint8Array"
     check mapNimTypeToTs("seq[byte]") == "Uint8Array"
+    check mapNimTypeToTs("openArray[int8]") == "Int8Array"
+    check mapNimTypeToTs("seq[int8]") == "Int8Array"
+    check mapNimTypeToTs("openArray[int16]") == "Int16Array"
+    check mapNimTypeToTs("seq[uint16]") == "Uint16Array"
+    check mapNimTypeToTs("openArray[int32]") == "Int32Array"
+    check mapNimTypeToTs("seq[uint32]") == "Uint32Array"
+    check mapNimTypeToTs("openArray[float32]") == "Float32Array"
+    check mapNimTypeToTs("seq[float64]") == "Float64Array"
+    check mapNimTypeToTs("openArray[int64]") == "BigInt64Array"
+    check mapNimTypeToTs("seq[uint64]") == "BigUint64Array"
     check mapNimTypeToTs("void") == "void"
     check mapNimTypeToTs("Future[int32]") == "Promise<number>"
+    check mapNimTypeToTs("Future[Float32Array]") == "Promise<Float32Array>"
     check mapNimTypeToTs("Future[string]") == "Promise<string>"
     check mapNimTypeToTs("Option[string]") == "string | null"
     check mapNimTypeToTs("seq[string]") == "string[]"
+    check mapNimTypeToTs("openArray[string]") == "string[]"
     check mapNimTypeToTs("NimTsHandle[PatchGraph]") == "PatchGraph"
 
   test "generateJs handles void, boolean, and json object return kinds":
@@ -227,4 +239,50 @@ suite "NimTS Code Generation Verification":
     check exportsIdx1 != -1
     let exportsIdx2 = js.find("formatValue,", exportsIdx1 + 12)
     check exportsIdx2 == -1
+
+  test "generateJs and generateDts marshal numeric arrays via binary TypedArray without JSON text":
+    let meta = TsModuleMeta(
+      name: "numeric_mod",
+      wasmFileName: "numeric_mod.wasm",
+      types: @[],
+      procs: @[
+        TsProc(
+          name: "scaleFloats",
+          cabiName: "nimts_scaleFloats",
+          params: @[
+            TsParam(name: "data", nimType: "openArray[float32]", tsType: "Float32Array"),
+            TsParam(name: "factor", nimType: "float32", tsType: "number")
+          ],
+          returnNimType: "seq[float32]",
+          returnTsType: "Float32Array",
+          isAsync: false,
+          isHandleReturn: false,
+          returnKind: "typedarray:Float32Array"
+        ),
+        TsProc(
+          name: "sumInt32s",
+          cabiName: "nimts_sumInt32s",
+          params: @[
+            TsParam(name: "data", nimType: "openArray[int32]", tsType: "Int32Array")
+          ],
+          returnNimType: "int32",
+          returnTsType: "number",
+          isAsync: false,
+          isHandleReturn: false,
+          returnKind: "int32"
+        )
+      ]
+    )
+
+    let dts = generateDts(meta)
+    check dts.contains("scaleFloats(data: Float32Array, factor: number): Float32Array;")
+    check dts.contains("sumInt32s(data: Int32Array): number;")
+
+    let js = generateJs(meta)
+    check js.contains("const _data_buf = _allocTypedArray(data, Float32Array);")
+    check js.contains("const arr = _readTypedArray(ptr, len, Float32Array);")
+    check js.contains("const _data_buf = _allocTypedArray(data, Int32Array);")
+    check not js.contains("JSON.stringify(data)")
+    check not js.contains("JSON.parse(jsonStr)")
+
 

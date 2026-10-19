@@ -31,6 +31,11 @@ describe('NimTsRuntime Unit Tests', () => {
       expect(() => runtime.passBytes(new Uint8Array([1, 2, 3]))).toThrow(/nimts module not initialized/);
     });
 
+    it('throws error when calling passTypedArray before init', () => {
+      const runtime = new NimTsRuntime();
+      expect(() => runtime.passTypedArray(new Float32Array([1, 2, 3]), Float32Array)).toThrow(/nimts module not initialized/);
+    });
+
     it('free() does not throw when uninitialized', () => {
       const runtime = new NimTsRuntime();
       expect(() => runtime.free(0)).not.toThrow();
@@ -47,6 +52,12 @@ describe('NimTsRuntime Unit Tests', () => {
       const runtime = new NimTsRuntime();
       expect(runtime.readBytes(0, 0)).toEqual(new Uint8Array(0));
       expect(runtime.readBytes(0, 10)).toEqual(new Uint8Array(0));
+    });
+
+    it('readTypedArray returns empty TypedArray for null pointer or zero length', () => {
+      const runtime = new NimTsRuntime();
+      expect(runtime.readTypedArray(0, 0, Float32Array)).toEqual(new Float32Array(0));
+      expect(runtime.readTypedArray(0, 10, Float32Array)).toEqual(new Float32Array(0));
     });
 
     it('throws when init() is called with no source', async () => {
@@ -99,6 +110,24 @@ describe('NimTsRuntime Unit Tests', () => {
       const readBackBytes = runtime.readBytes(bytePtr, byteLen);
       expect(readBackBytes).toEqual(testBytes);
       runtime.free(bytePtr);
+
+      // passTypedArray and readTypedArray roundtrip (Float32Array)
+      const testFloats = new Float32Array([1.25, 2.5, 5.0, -10.0]);
+      const { ptr: floatPtr, len: floatLen } = runtime.passTypedArray(testFloats, Float32Array);
+      expect(floatPtr).toBeGreaterThan(0);
+      expect(floatLen).toBe(testFloats.length);
+      const readBackFloats = runtime.readTypedArray(floatPtr, floatLen, Float32Array);
+      expect(readBackFloats).toEqual(testFloats);
+      runtime.free(floatPtr);
+
+      // passTypedArray and readTypedArray roundtrip (Int32Array)
+      const testInts = new Int32Array([1000, 2000, -3000, 4000]);
+      const { ptr: intPtr, len: intLen } = runtime.passTypedArray(testInts, Int32Array);
+      expect(intPtr).toBeGreaterThan(0);
+      expect(intLen).toBe(testInts.length);
+      const readBackInts = runtime.readTypedArray(intPtr, intLen, Int32Array);
+      expect(readBackInts).toEqual(testInts);
+      runtime.free(intPtr);
     });
 
     it('initializes from pre-compiled WebAssembly.Module', async () => {

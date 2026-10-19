@@ -113,6 +113,15 @@ proc allocBytesResult*(bytes: openArray[byte]): uint64 =
   copyMem(p, unsafeAddr bytes[0], bytes.len)
   result = packBuffer(p, bytes.len.int32)
 
+proc allocTypedArrayResult*[T](items: openArray[T]): uint64 =
+  if items.len == 0:
+    return packBuffer(nil, 0)
+  let byteLen = items.len * sizeof(T)
+  let p = alloc0(byteLen)
+  if items.len > 0:
+    copyMem(p, unsafeAddr items[0], byteLen)
+  result = packBuffer(p, items.len.int32)
+
 proc allocPrimitiveResult*[T](val: T): uint64 =
   var p = cast[ptr T](alloc0(sizeof(T)))
   p[] = val
@@ -141,6 +150,11 @@ proc readBytes*(p: ptr uint8, len: int32): seq[byte] =
   if p == nil or len <= 0: return @[]
   result = newSeq[byte](len)
   copyMem(addr result[0], p, len)
+
+proc readTypedArray*[T](p: ptr T, len: int32): seq[T] =
+  if p == nil or len <= 0: return @[]
+  result = newSeq[T](len)
+  copyMem(addr result[0], p, len * sizeof(T))
 
 proc defaultHandleDestructor[T: ref object](raw: pointer) {.nimcall.} =
   if raw != nil:
