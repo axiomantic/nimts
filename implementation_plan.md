@@ -255,13 +255,13 @@ For all parallel development tracks:
 
 ## Phase 8: Real-Time Extensions (AudioWorklet, Pinned Views, Binary Arrays & Multi-Repo)
 
-- [ ] **Task 8.1: Binary TypedArray ABI Marshaling for `seq[T]` / `openArray[T]`** (`nimts-architect`)
+- [x] **Task 8.1: Binary TypedArray ABI Marshaling for `seq[T]` / `openArray[T]`** (`nimts-architect`)
   - *Strand*: `strand/task-8-1-binary-typedarrays`
   - *Lock*: `rhizo lock file:src/nimts/codegen.nim 1200 --fencing`
   - *Provider*: `src/nimts/codegen.nim`, `src/nimts/macros.nim`, `ts/runtime.ts`
   - *Consumer / Call-Site*: Wire numeric `seq[T]` and `openArray[T]` (`byte`/`uint8`, `int8`, `int16`, `uint16`, `int32`, `uint32`, `float32`, `float64`) across the C-ABI boundary using raw binary `TypedArray`s in both argument and return positions instead of JSON text serialization.
-  - *Verification*: `nimble test` and `npm test` verifying direct TypedArray serialization and zero-copy performance.
-  - *Weave*: `vine gate && vine weave`
+  - *Verification*: `nimble test` (12/12) and `npm test` (89/89) verifying direct TypedArray serialization and zero-copy performance.
+  - *Weave*: Woven in commit `012cfe6` and pushed to `origin/main`.
 
 - [ ] **Task 8.2: Zero-Copy Pinned TypedArray Views (`NimTsView[T]` / `{.exporttsView.}`)** (`nimts-architect`)
   - *Strand*: `strand/task-8-2-pinned-views`
