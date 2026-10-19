@@ -271,13 +271,13 @@ For all parallel development tracks:
   - *Verification*: Unit tests in `tests/test_memory.nim` and `tests/test_runtime.test.ts`.
   - *Weave*: `vine gate && vine weave`
 
-- [ ] **Task 8.3: First-Class WebAudio AudioWorklet Support (`@axiomantic/nimts/worklet` & `?worklet`)** (`nimts-implementer`)
+- [x] **Task 8.3: First-Class WebAudio AudioWorklet Support (`@axiomantic/nimts/worklet` & `?worklet`)** (`nimts-implementer`)
   - *Strand*: `strand/task-8-3-audioworklet`
   - *Lock*: `rhizo lock file:ts/worklet.ts 1200 --fencing`
   - *Provider*: `src/nimts/macros.nim`, `ts/worklet.ts`, `ts/vite-plugin-nimts.ts`
   - *Consumer / Call-Site*: Add `{.exportts, audioProcess.}` pragma. Generate `AudioWorkletProcessor` subclass module instantiating WASM in `AudioWorkletGlobalScope`, handling `port.onmessage` RPC, and running `process()` with zero-copy `Float32Array` views. Implement `NimTsWorkletClient<T>` for the main thread with async RPC and event subscriptions.
-  - *Verification*: Vitest test suite in `tests/test_worklet.test.ts`.
-  - *Weave*: `vine gate && vine weave`
+  - *Verification*: Vitest test suite in `tests/test_worklet.test.ts` (8/8 tests, 100% green).
+  - *Weave*: Woven in commit `9acf904` and pushed to `origin/main`.
 
 - [x] **Task 8.4: Multi-Repo Nimble Path & Linker Flag Discovery in `vite-plugin-nimts`** (`nimts-implementer`)
   - *Strand*: `strand/task-8-4-vite-multi-repo`
