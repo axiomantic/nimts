@@ -1,7 +1,9 @@
 import { defineConfig } from 'vitepress';
+import { withMermaid } from 'vitepress-plugin-mermaid';
 
 // https://vitepress.dev/reference/site-config
-export default defineConfig({
+export default withMermaid(
+  defineConfig({
   title: "NimTS",
   description: "Seamless TypeScript & WebAssembly Bridge for Nim",
   base: "/nimts/",
@@ -91,4 +93,4 @@ export default defineConfig({
       copyright: "Copyright © 2026 Axiomantic & Contributors"
     }
   }
-});
+}));
