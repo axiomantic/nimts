@@ -10,6 +10,10 @@ export default withMermaid(
   cleanUrls: true,
   lastUpdated: true,
 
+  markdown: {
+    math: true
+  },
+
   themeConfig: {
     logo: { text: "⚡ NimTS" },
     siteTitle: "NimTS",
