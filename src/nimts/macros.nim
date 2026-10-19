@@ -509,7 +509,43 @@ macro emitTsGlueFiles*(moduleName: static[string], outputDir: static[string] = "
   let jsPath = outputDir & "/" & moduleName & ".js"
   writeFile(dtsPath, dtsContent)
   writeFile(jsPath, jsContent)
+
+  var symbols: seq[string] = @[
+    "NimMain",
+    "nimts_init",
+    "nimts_alloc",
+    "nimts_free",
+    "nimts_alloc_aligned",
+    "nimts_free_aligned",
+    "nimts_get_last_result_ptr",
+    "nimts_get_last_result_len",
+    "nimts_get_last_error_ptr",
+    "nimts_get_last_error_len",
+    "nimts_destroy_handle",
+    "nimts_resume_future",
+    "nimts_resume_future_error",
+    "nimts_iter_step",
+    "nimts_iter_finished",
+    "nimts_iter_dispose",
+    "nimts_chan_is_closed",
+    "nimts_chan_try_recv",
+    "nimts_chan_read",
+    "nimts_chan_close",
+    "nimts_chan_send",
+    "nimts_chan_get_raw_ptrs"
+  ]
+  for p in gExportedProcs:
+    if p.cabiName notin symbols:
+      symbols.add(p.cabiName)
+
+  let manifest = %* {
+    "module": moduleName,
+    "symbols": symbols
+  }
+  let manifestPath = outputDir & "/_nimts_exports.json"
+  writeFile(manifestPath, pretty(manifest))
   result = newEmptyNode()
+
 
 proc getExportedProcsCount*(): int {.compileTime.} = gExportedProcs.len
 proc getExportedTypesCount*(): int {.compileTime.} = gExportedTypes.len
