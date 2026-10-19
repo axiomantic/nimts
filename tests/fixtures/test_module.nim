@@ -24,6 +24,26 @@ proc checksumBytes*(data: openArray[byte]): seq[byte] {.exportts.} =
   for i in 0 ..< data.len:
     result[i] = data[i] xor 0xFF'u8
 
+proc scaleFloats*(data: openArray[float32], factor: float32): seq[float32] {.exportts.} =
+  result = newSeq[float32](data.len)
+  for i in 0 ..< data.len:
+    result[i] = data[i] * factor
+
+proc sumInt32s*(data: openArray[int32]): int32 {.exportts.} =
+  result = 0
+  for x in data:
+    result += x
+
+proc negateInt16s*(data: openArray[int16]): seq[int16] {.exportts.} =
+  result = newSeq[int16](data.len)
+  for i in 0 ..< data.len:
+    result[i] = -data[i]
+
+proc doubleFloat64s*(data: seq[float64]): seq[float64] {.exportts.} =
+  result = newSeq[float64](data.len)
+  for i in 0 ..< data.len:
+    result[i] = data[i] * 2.0
+
 proc createEngine*(sampleRate: float32): AudioEngine {.exportts.} =
   AudioEngine(sampleRate: sampleRate, volume: 1.0'f32)
 

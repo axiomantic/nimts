@@ -26,7 +26,11 @@ import {
   streamNumbers,
   streamIdiomaticChannel,
   NimTsChannel,
-  Channel
+  Channel,
+  scaleFloats,
+  sumInt32s,
+  negateInt16s,
+  doubleFloat64s
 } from './fixtures/test_module.js';
 
 const WASM_FILE = path.resolve(__dirname, 'fixtures/test_module.wasm');
@@ -59,6 +63,53 @@ describe('NimTS WebAssembly Integration (Sync & Async)', () => {
       expect(output[0]).toBe(0xff);
       expect(output[1]).toBe(0x11 ^ 0xff);
       expect(output[4]).toBe(0x00);
+    });
+
+    it('marshals Float32Array / openArray[float32] and seq[float32] bidirectionally via binary ABI', () => {
+      const input = new Float32Array([1.5, 2.5, 3.5, -4.5]);
+      const output = scaleFloats(input, 2.0);
+      expect(output).toBeInstanceOf(Float32Array);
+      expect(output.length).toBe(input.length);
+      expect(output[0]).toBeCloseTo(3.0, 5);
+      expect(output[1]).toBeCloseTo(5.0, 5);
+      expect(output[2]).toBeCloseTo(7.0, 5);
+      expect(output[3]).toBeCloseTo(-9.0, 5);
+    });
+
+    it('marshals Int32Array / openArray[int32] parameter without JSON text', () => {
+      const input = new Int32Array([10, 20, 30, 40]);
+      const sum = sumInt32s(input);
+      expect(sum).toBe(100);
+    });
+
+    it('marshals Int16Array / openArray[int16] and seq[int16] bidirectionally', () => {
+      const input = new Int16Array([100, -200, 300, -400]);
+      const output = negateInt16s(input);
+      expect(output).toBeInstanceOf(Int16Array);
+      expect(output.length).toBe(4);
+      expect(output[0]).toBe(-100);
+      expect(output[1]).toBe(200);
+      expect(output[2]).toBe(-300);
+      expect(output[3]).toBe(400);
+    });
+
+    it('marshals Float64Array / seq[float64] bidirectionally', () => {
+      const input = new Float64Array([1.25, 2.5, 5.0]);
+      const output = doubleFloat64s(input);
+      expect(output).toBeInstanceOf(Float64Array);
+      expect(output.length).toBe(3);
+      expect(output[0]).toBeCloseTo(2.5, 5);
+      expect(output[1]).toBeCloseTo(5.0, 5);
+      expect(output[2]).toBeCloseTo(10.0, 5);
+    });
+
+    it('accepts regular JS arrays and auto-wraps into TypedArray for WASM C-ABI', () => {
+      const output = scaleFloats([1.0, 2.0, 4.0] as any, 0.5);
+      expect(output).toBeInstanceOf(Float32Array);
+      expect(output.length).toBe(3);
+      expect(output[0]).toBeCloseTo(0.5, 5);
+      expect(output[1]).toBeCloseTo(1.0, 5);
+      expect(output[2]).toBeCloseTo(2.0, 5);
     });
 
     it('marshals complex value objects via JSON', () => {

@@ -51,6 +51,24 @@ proc mapNimTypeToTs*(nimType: string): string =
     return "string"
   of "seq[byte]", "openArray[byte]", "seq[uint8]", "openArray[uint8]":
     return "Uint8Array"
+  of "seq[int8]", "openArray[int8]":
+    return "Int8Array"
+  of "seq[int16]", "openArray[int16]":
+    return "Int16Array"
+  of "seq[uint16]", "openArray[uint16]":
+    return "Uint16Array"
+  of "seq[int32]", "openArray[int32]", "seq[int]", "openArray[int]":
+    return "Int32Array"
+  of "seq[uint32]", "openArray[uint32]", "seq[uint]", "openArray[uint]":
+    return "Uint32Array"
+  of "seq[float32]", "openArray[float32]", "seq[float]", "openArray[float]":
+    return "Float32Array"
+  of "seq[float64]", "openArray[float64]":
+    return "Float64Array"
+  of "seq[int64]", "openArray[int64]":
+    return "BigInt64Array"
+  of "seq[uint64]", "openArray[uint64]":
+    return "BigUint64Array"
   of "void", "":
     return "void"
   else:
@@ -62,6 +80,9 @@ proc mapNimTypeToTs*(nimType: string): string =
       return mapNimTypeToTs(inner) & " | null"
     if t.startsWith("seq[") and t.endsWith("]"):
       let inner = t[4 .. ^2]
+      return mapNimTypeToTs(inner) & "[]"
+    if t.startsWith("openArray[") and t.endsWith("]"):
+      let inner = t[10 .. ^2]
       return mapNimTypeToTs(inner) & "[]"
     if t.startsWith("NimTsHandle[") and t.endsWith("]"):
       let inner = t[12 .. ^2]
@@ -212,9 +233,9 @@ proc generateProcBody(p: TsProc, fnName: string, isExported: bool, meta: TsModul
       callArgs.add(varName & ".ptr")
       callArgs.add(varName & ".len")
       freeStmts.add("  _free(" & varName & ".ptr);")
-    of "Uint8Array":
+    of "Uint8Array", "Int8Array", "Int16Array", "Uint16Array", "Int32Array", "Uint32Array", "Float32Array", "Float64Array", "BigInt64Array", "BigUint64Array":
       let varName = "_" & param.name & "_buf"
-      allocStmts.add("  const " & varName & " = _allocBytes(" & param.name & ");")
+      allocStmts.add("  const " & varName & " = _allocTypedArray(" & param.name & ", " & param.tsType & ");")
       callArgs.add(varName & ".ptr")
       callArgs.add(varName & ".len")
       freeStmts.add("  _free(" & varName & ".ptr);")
@@ -275,6 +296,13 @@ proc generateProcBody(p: TsProc, fnName: string, isExported: bool, meta: TsModul
       lines.add("    const bytes = _readBytes(ptr, len);")
       lines.add("    _free(ptr);")
       lines.add("    return bytes;")
+    elif p.returnKind.startsWith("typedarray:"):
+      let arrayName = p.returnKind[11 .. ^1]
+      lines.add("    const packed = " & rawCall & ";")
+      lines.add("    const { ptr, len } = _unpackResult64(packed);")
+      lines.add("    const arr = _readTypedArray(ptr, len, " & arrayName & ");")
+      lines.add("    _free(ptr);")
+      lines.add("    return arr;")
     elif p.returnKind == "handle":
       lines.add("    const handleId = " & rawCall & ";")
       lines.add("    return new " & p.returnTsType & "(handleId);")
@@ -397,6 +425,17 @@ proc generateJs*(meta: TsModuleMeta, relativeWasmPath: string = ""): string =
   lines.add("  return new Uint8Array(_getBuffer(), ptr, len).slice();")
   lines.add("}")
   lines.add("")
+  lines.add("function _readTypedArray(ptr, len, Ctor) {")
+  lines.add("  if (!ptr || len <= 0) return new Ctor(0);")
+  lines.add("  const byteLen = len * Ctor.BYTES_PER_ELEMENT;")
+  lines.add("  if (ptr % Ctor.BYTES_PER_ELEMENT === 0) {")
+  lines.add("    return new Ctor(_getBuffer(), ptr, len).slice();")
+  lines.add("  }")
+  lines.add("  const copy = new Uint8Array(byteLen);")
+  lines.add("  copy.set(new Uint8Array(_getBuffer(), ptr, byteLen));")
+  lines.add("  return new Ctor(copy.buffer, 0, len);")
+  lines.add("}")
+  lines.add("")
   lines.add("function _allocString(str) {")
   lines.add("  if (typeof str !== 'string') str = String(str);")
   lines.add("  const encoded = _textEncoder ? _textEncoder.encode(str) : _utf8Encode(str);")
@@ -405,11 +444,16 @@ proc generateJs*(meta: TsModuleMeta, relativeWasmPath: string = ""): string =
   lines.add("  return { ptr, len: encoded.length };")
   lines.add("}")
   lines.add("")
+  lines.add("function _allocTypedArray(arr, Ctor) {")
+  lines.add("  const typed = arr instanceof Ctor ? arr : new Ctor(arr);")
+  lines.add("  const byteLen = typed.byteLength;")
+  lines.add("  const ptr = _exports.nimts_alloc(byteLen);")
+  lines.add("  new Uint8Array(_getBuffer(), ptr, byteLen).set(new Uint8Array(typed.buffer, typed.byteOffset, byteLen));")
+  lines.add("  return { ptr, len: typed.length };")
+  lines.add("}")
+  lines.add("")
   lines.add("function _allocBytes(bytes) {")
-  lines.add("  const b = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);")
-  lines.add("  const ptr = _exports.nimts_alloc(b.length);")
-  lines.add("  new Uint8Array(_getBuffer(), ptr, b.length).set(b);")
-  lines.add("  return { ptr, len: b.length };")
+  lines.add("  return _allocTypedArray(bytes, Uint8Array);")
   lines.add("}")
   lines.add("")
   lines.add("function _free(ptr) {")
@@ -468,6 +512,20 @@ proc generateJs*(meta: TsModuleMeta, relativeWasmPath: string = ""): string =
   lines.add("  if (kind === 'bytes') {")
   lines.add("    if (ptrOrBuf instanceof Uint8Array) return ptrOrBuf;")
   lines.add("    return _readBytes(ptrOrBuf, len);")
+  lines.add("  }")
+  lines.add("  if (kind.startsWith('typedarray:')) {")
+  lines.add("    const arrayName = kind.slice(11);")
+  lines.add("    const Ctor = globalThis[arrayName];")
+  lines.add("    if (ptrOrBuf instanceof Uint8Array) {")
+  lines.add("      const elemCount = len > 0 ? len : Math.floor(ptrOrBuf.byteLength / Ctor.BYTES_PER_ELEMENT);")
+  lines.add("      if (ptrOrBuf.byteOffset % Ctor.BYTES_PER_ELEMENT === 0) {")
+  lines.add("        return new Ctor(ptrOrBuf.buffer, ptrOrBuf.byteOffset, elemCount).slice();")
+  lines.add("      }")
+  lines.add("      const copy = new Uint8Array(ptrOrBuf.byteLength);")
+  lines.add("      copy.set(ptrOrBuf);")
+  lines.add("      return new Ctor(copy.buffer, 0, elemCount);")
+  lines.add("    }")
+  lines.add("    return _readTypedArray(ptrOrBuf, len, Ctor);")
   lines.add("  }")
   lines.add("  if (kind === 'object') {")
   lines.add("    const s = (ptrOrBuf instanceof Uint8Array) ? (_textDecoder ? _textDecoder.decode(ptrOrBuf) : _utf8Decode(ptrOrBuf)) : _readString(ptrOrBuf, len);")
@@ -647,6 +705,13 @@ proc generateJs*(meta: TsModuleMeta, relativeWasmPath: string = ""): string =
   lines.add("      const ok = sendFn(this.#channelId, ptr, len);")
   lines.add("      _free(ptr);")
   lines.add("      return ok !== 0;")
+  lines.add("    } else if (this.#kind.startsWith('typedarray:')) {")
+  lines.add("      const arrayName = this.#kind.slice(11);")
+  lines.add("      const Ctor = globalThis[arrayName];")
+  lines.add("      const { ptr, len } = _allocTypedArray(item, Ctor);")
+  lines.add("      const ok = sendFn(this.#channelId, ptr, len);")
+  lines.add("      _free(ptr);")
+  lines.add("      return ok !== 0;")
   lines.add("    } else if (this.#kind === 'int32' || this.#kind === 'primitive') {")
   lines.add("      const ptr = _exports.nimts_alloc(4);")
   lines.add("      new DataView(_getBuffer(), ptr, 4).setInt32(0, item, true);")
@@ -782,8 +847,8 @@ proc generateJs*(meta: TsModuleMeta, relativeWasmPath: string = ""): string =
             conds.add("typeof " & argExpr & " === 'bigint'")
           of "boolean":
             conds.add("typeof " & argExpr & " === 'boolean'")
-          of "Uint8Array":
-            conds.add(argExpr & " instanceof Uint8Array")
+          of "Uint8Array", "Int8Array", "Int16Array", "Uint16Array", "Int32Array", "Uint32Array", "Float32Array", "Float64Array", "BigInt64Array", "BigUint64Array":
+            conds.add("(" & argExpr & " instanceof " & param.tsType & " || Array.isArray(" & argExpr & "))")
           of "number":
             if param.nimType.startsWith("float"):
               conds.add("typeof " & argExpr & " === 'number'")

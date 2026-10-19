@@ -57,6 +57,27 @@ proc rewriteChannelNodes(n: NimNode): NimNode =
   for child in n:
     result.add(rewriteChannelNodes(child))
 
+proc getArrayElemType(nimType: string): string =
+  let t = nimType.strip
+  if (t.startsWith("seq[") or t.startsWith("openArray[")) and t.endsWith("]"):
+    let startIdx = if t.startsWith("seq["): 4 else: 10
+    return t[startIdx .. ^2].strip
+  return ""
+
+proc numericElemToTsArray(elemType: string): string =
+  case elemType
+  of "byte", "uint8": "Uint8Array"
+  of "int8": "Int8Array"
+  of "int16": "Int16Array"
+  of "uint16": "Uint16Array"
+  of "int", "int32": "Int32Array"
+  of "uint", "uint32": "Uint32Array"
+  of "float", "float32": "Float32Array"
+  of "float64": "Float64Array"
+  of "int64": "BigInt64Array"
+  of "uint64": "BigUint64Array"
+  else: ""
+
 proc classifyParamType(typeNode: NimNode): (ParamKind, string, string) =
   let typeRepr = typeNode.repr.strip
   if (typeRepr.startsWith("NimTsChannel[") and typeRepr.endsWith("]")) or
@@ -66,13 +87,17 @@ proc classifyParamType(typeNode: NimNode): (ParamKind, string, string) =
     return (pkHandle, typeRepr, "NimTsChannel<" & mapNimTypeToTs(inner) & ">")
   elif typeRepr == "NimTsChannel" or typeRepr == "Channel":
     return (pkHandle, typeRepr, "NimTsChannel<any>")
+
+  let arrayElem = getArrayElemType(typeRepr)
+  let tsArray = numericElemToTsArray(arrayElem)
+  if tsArray.len > 0:
+    return (pkBytes, typeRepr, tsArray)
+
   case typeRepr
   of "int", "int32", "int16", "int8", "uint", "uint32", "uint16", "uint8", "int64", "uint64", "float", "float32", "float64", "bool", "char":
     return (pkPrimitive, typeRepr, mapNimTypeToTs(typeRepr))
   of "string", "cstring":
     return (pkString, typeRepr, "string")
-  of "seq[byte]", "openArray[byte]", "seq[uint8]", "openArray[uint8]":
-    return (pkBytes, typeRepr, "Uint8Array")
   else:
     for t in gExportedTypes:
       if t.name == typeRepr and t.isHandle:
@@ -91,7 +116,12 @@ proc classifyReturnType(retNode: NimNode): (string, string, bool, string) =
   if retRepr.startsWith("Future[") and retRepr.endsWith("]"):
     let inner = retRepr[7 .. ^2]
     let innerTs = mapNimTypeToTs(inner)
-    let innerKind = case inner
+    let innerElem = getArrayElemType(inner)
+    let innerTsArray = numericElemToTsArray(innerElem)
+    let innerKind = if innerTsArray.len > 0:
+      "typedarray:" & innerTsArray
+    else:
+      case inner
       of "int", "int32", "int16", "int8", "uint", "uint32", "uint16", "uint8": "int32"
       of "int64", "uint64": "int64"
       of "float", "float32": "float32"
@@ -105,7 +135,12 @@ proc classifyReturnType(retNode: NimNode): (string, string, bool, string) =
   if retRepr.startsWith("NimTsIterator[") and retRepr.endsWith("]"):
     let inner = retRepr[14 .. ^2]
     let innerTs = mapNimTypeToTs(inner)
-    let innerKind = case inner
+    let innerElem = getArrayElemType(inner)
+    let innerTsArray = numericElemToTsArray(innerElem)
+    let innerKind = if innerTsArray.len > 0:
+      "typedarray:" & innerTsArray
+    else:
+      case inner
       of "int", "int32", "int16", "int8", "uint", "uint32", "uint16", "uint8": "int32"
       of "int64", "uint64": "int64"
       of "float", "float32": "float32"
@@ -120,7 +155,12 @@ proc classifyReturnType(retNode: NimNode): (string, string, bool, string) =
     let prefixLen = if retRepr.startsWith("NimTsChannel["): 13 else: 8
     let inner = retRepr[prefixLen .. ^2]
     let innerTs = mapNimTypeToTs(inner)
-    let innerKind = case inner
+    let innerElem = getArrayElemType(inner)
+    let innerTsArray = numericElemToTsArray(innerElem)
+    let innerKind = if innerTsArray.len > 0:
+      "typedarray:" & innerTsArray
+    else:
+      case inner
       of "int", "int32", "int16", "int8", "uint", "uint32", "uint16", "uint8": "int32"
       of "int64", "uint64": "int64"
       of "float", "float32": "float32"
@@ -132,6 +172,12 @@ proc classifyReturnType(retNode: NimNode): (string, string, bool, string) =
     return (retRepr, "NimTsChannel<" & innerTs & ">", false, "channel:" & innerKind)
   if retRepr == "NimTsChannel" or retRepr == "Channel":
     return (retRepr, "NimTsChannel<any>", false, "channel:object")
+
+  let retElem = getArrayElemType(retRepr)
+  let retTsArray = numericElemToTsArray(retElem)
+  if retTsArray.len > 0:
+    return (retRepr, retTsArray, false, "typedarray:" & retTsArray)
+
   case retRepr
   of "int", "int32", "int16", "int8", "uint", "uint32", "uint16", "uint8":
     return (retRepr, mapNimTypeToTs(retRepr), false, "int32")
@@ -147,8 +193,6 @@ proc classifyReturnType(retNode: NimNode): (string, string, bool, string) =
     return (retRepr, "string", false, "char")
   of "string", "cstring":
     return (retRepr, "string", false, "string")
-  of "seq[byte]", "openArray[byte]", "seq[uint8]", "openArray[uint8]":
-    return (retRepr, "Uint8Array", false, "bytes")
   else:
     for t in gExportedTypes:
       if t.name == retRepr and t.isHandle:
@@ -257,12 +301,14 @@ proc processExportTs*(body: NimNode): NimNode =
         of pkBytes:
           let ptrIdent = ident(paramName & "_ptr")
           let lenIdent = ident(paramName & "_len")
-          wrapperFormalParams.add(newIdentDefs(ptrIdent, parseExpr("ptr uint8")))
+          let elemType = getArrayElemType(paramNimType)
+          let elemNimType = if elemType == "byte": "uint8" elif elemType == "int": "int32" elif elemType == "uint": "uint32" elif elemType == "float": "float32" else: elemType
+          wrapperFormalParams.add(newIdentDefs(ptrIdent, parseExpr("ptr " & elemNimType)))
           wrapperFormalParams.add(newIdentDefs(lenIdent, ident("int32")))
           if paramNimType.startsWith("openArray"):
-            callArgs.add(parseExpr("(if " & lenIdent.strVal & " > 0 and " & ptrIdent.strVal & " != nil: toOpenArray(cast[ptr UncheckedArray[byte]](" & ptrIdent.strVal & "), 0, " & lenIdent.strVal & " - 1) else: toOpenArray(cast[ptr UncheckedArray[byte]](nil), 0, -1))"))
+            callArgs.add(parseExpr("(if " & lenIdent.strVal & " > 0 and " & ptrIdent.strVal & " != nil: toOpenArray(cast[ptr UncheckedArray[" & elemType & "]](" & ptrIdent.strVal & "), 0, " & lenIdent.strVal & " - 1) else: toOpenArray(cast[ptr UncheckedArray[" & elemType & "]](nil), 0, -1))"))
           else:
-            unpackStmts.add(parseStmt("let " & paramName & " = readBytes(" & ptrIdent.strVal & ", " & lenIdent.strVal & ")"))
+            unpackStmts.add(parseStmt("let " & paramName & " = readTypedArray[" & elemType & "](" & ptrIdent.strVal & ", " & lenIdent.strVal & ")"))
             callArgs.add(ident(paramName))
 
         of pkHandle:
@@ -320,8 +366,8 @@ try:
     return res
   elif typeof(res) is string:
     return allocStringResult(res)
-  elif typeof(res) is (seq[byte] or seq[uint8]):
-    return allocBytesResult(res)
+  elif typeof(res) is (seq[byte] or seq[uint8] or seq[int8] or seq[int16] or seq[uint16] or seq[int32] or seq[int] or seq[uint32] or seq[uint] or seq[float32] or seq[float] or seq[float64] or seq[int64] or seq[uint64]):
+    return allocTypedArrayResult(res)
   elif (when declared(Future): typeof(res) is Future else: false):
     return bridgeFutureToPromise(res)
   elif (when declared(NimTsIterator): typeof(res) is NimTsIterator else: false):
@@ -339,7 +385,7 @@ except CatchableError as e:
     return default(RetType)
   elif RetType is string:
     return 0'u64
-  elif RetType is (seq[byte] or seq[uint8]):
+  elif RetType is (seq[byte] or seq[uint8] or seq[int8] or seq[int16] or seq[uint16] or seq[int32] or seq[int] or seq[uint32] or seq[uint] or seq[float32] or seq[float] or seq[float64] or seq[int64] or seq[uint64]):
     return 0'u64
   elif (when declared(Future): RetType is Future else: false):
     return 0'i32
@@ -358,7 +404,7 @@ except Defect as e:
     return default(RetType)
   elif RetType is string:
     return 0'u64
-  elif RetType is (seq[byte] or seq[uint8]):
+  elif RetType is (seq[byte] or seq[uint8] or seq[int8] or seq[int16] or seq[uint16] or seq[int32] or seq[int] or seq[uint32] or seq[uint] or seq[float32] or seq[float] or seq[float64] or seq[int64] or seq[uint64]):
     return 0'u64
   elif (when declared(Future): RetType is Future else: false):
     return 0'i32

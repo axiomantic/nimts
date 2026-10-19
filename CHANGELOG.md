@@ -10,6 +10,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Binary TypedArray ABI Marshaling for `seq[T]` / `openArray[T]`**:
+  - Implemented raw binary TypedArray marshaling across the WASM C-ABI boundary for numeric slices (`openArray`/`seq` of `byte`/`uint8`, `int8`, `int16`, `uint16`, `int32`, `uint32`, `float32`, `float64`, `int64`, `uint64`).
+  - Completely bypassed JSON text serialization and string parsing for numeric collections, replacing them with direct binary pointer/length descriptor passing (`packBuffer`) and `.slice()` views over `wasmMemory.buffer`.
+  - Added `allocTypedArrayResult[T]` and `readTypedArray[T]` in `src/nimts/memory.nim` with zero intermediate allocations for `openArray[T]`.
+  - Added `readTypedArray` and `passTypedArray` in `ts/runtime.ts` and generated TypeScript / JavaScript glue wrappers.
 - **Multi-Threaded Web Worker Runtime (`@axiomantic/nimts/worker`)**:
   - Implemented `spawnWorker(moduleUrl, options)` providing transparent async RPC proxying to background Web Workers.
   - Added Vite `?worker` query syntax support (`import SynthWorker from './synth.nim?worker'`) for effortless zero-config worker instantiation.
