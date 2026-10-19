@@ -250,18 +250,22 @@ export function nimtsPlugin(options: NimTsPluginOptions = {}): Plugin {
 
     async resolveId(source, importer) {
       const isWorker = source.endsWith('.nim?worker') || source.includes('.nim?worker');
+      const isWorklet = source.endsWith('.nim?worklet') || source.includes('.nim?worklet');
       const cleanSource = source.replace(/\?.*$/, '');
       if (cleanSource.endsWith('.nim')) {
         const resolution = path.isAbsolute(cleanSource)
           ? cleanSource
           : path.resolve(importer ? path.dirname(importer) : (config?.root || process.cwd()), cleanSource);
-        return isWorker ? `${resolution}?worker` : resolution;
+        if (isWorker) return `${resolution}?worker`;
+        if (isWorklet) return `${resolution}?worklet`;
+        return resolution;
       }
       return null;
     },
 
     async load(id) {
       const isWorker = id.endsWith('.nim?worker') || id.includes('.nim?worker');
+      const isWorklet = id.endsWith('.nim?worklet') || id.includes('.nim?worklet');
       const cleanId = id.replace(/\?.*$/, '');
       if (!cleanId.endsWith('.nim')) return null;
 
@@ -581,6 +585,34 @@ export function spawn(options = {}) {
 `;
         return {
           code: workerGlue,
+          map: null
+        };
+      }
+
+      if (isWorklet) {
+        const workletGlue = `
+import { createNimTsWorklet } from '@axiomantic/nimts/worklet';
+
+export default class NimWorkletNode {
+  static async create(audioContext, options = {}) {
+    return createNimTsWorklet({
+      audioContext,
+      wasmPath: new URL('/wasm/${baseName}.wasm', import.meta.url).href,
+      ...options
+    });
+  }
+}
+
+export async function createWorklet(audioContext, options = {}) {
+  return createNimTsWorklet({
+    audioContext,
+    wasmPath: new URL('/wasm/${baseName}.wasm', import.meta.url).href,
+    ...options
+  });
+}
+`;
+        return {
+          code: workletGlue,
           map: null
         };
       }

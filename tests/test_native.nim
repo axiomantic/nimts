@@ -44,6 +44,12 @@ proc formatValue*(val: int32): string {.exportts.} =
 proc formatValue*(val: float32): string {.exportts.} =
   "float:" & $val
 
+proc renderWorkletFrame*(samples: int32): int32 {.exporttsWorklet.} =
+  samples * 2
+
+proc processRealtimeAudio*(samples: int32): int32 {.exportts, audioProcess.} =
+  samples * 4
+
 suite "Native Nim {.exportts.} Non-Invasive Verification":
 
   test "Direct invocation with primitive arguments and returns":
@@ -79,4 +85,9 @@ suite "Native Nim {.exportts.} Non-Invasive Verification":
     check formatValue(42'i32) == "int:42"
     check formatValue(3.5'f32) == "float:3.5"
     check formatValue(3.14'f32).startsWith("float:3.14")
+
+  test "Direct invocation with exporttsWorklet and audioProcess pragma":
+    check renderWorkletFrame(64) == 128
+    check processRealtimeAudio(32) == 128
+
 

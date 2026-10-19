@@ -191,7 +191,22 @@ proc processExportTs*(body: NimNode): NimNode =
       gProcCounts[countKey] = 0
     let cabiIdent = ident(cabiNameStr)
 
-    # 1. Clean pragmas on the original proc (remove exportts pragma)
+    var isAudioProcess = false
+    if procDef[4].kind == nnkPragma:
+      for p in procDef[4]:
+        let pName = if p.kind == nnkIdent: p.strVal
+                    elif p.kind == nnkExprColonExpr and p.len > 0: p[0].strVal
+                    elif p.kind == nnkCall and p.len > 0: p[0].strVal
+                    else: ""
+        if pName.toLowerAscii in ["audioprocess", "audio_process", "worklet", "exporttsworklet"]:
+          isAudioProcess = true
+        elif p.kind in [nnkExprColonExpr, nnkCall]:
+          for k in 1 ..< p.len:
+            let childName = if p[k].kind == nnkIdent: p[k].strVal else: ""
+            if childName.toLowerAscii in ["audioprocess", "audio_process", "worklet"]:
+              isAudioProcess = true
+
+    # 1. Clean pragmas on the original proc (remove exportts & audioProcess pragmas)
     var newPragmas = newNimNode(nnkPragma)
     if procDef[4].kind == nnkPragma:
       for p in procDef[4]:
@@ -199,7 +214,7 @@ proc processExportTs*(body: NimNode): NimNode =
                     elif p.kind == nnkExprColonExpr and p.len > 0: p[0].strVal
                     elif p.kind == nnkCall and p.len > 0: p[0].strVal
                     else: ""
-        if pName.toLowerAscii in ["exportts", "export_ts", "module"]:
+        if pName.toLowerAscii in ["exportts", "export_ts", "module", "audioprocess", "audio_process", "worklet", "exporttsworklet"]:
           discard
         else:
           newPragmas.add(p)
@@ -274,7 +289,8 @@ proc processExportTs*(body: NimNode): NimNode =
       returnTsType: retTsType,
       isAsync: isAsync,
       isHandleReturn: retKind == "handle",
-      returnKind: retKind
+      returnKind: retKind,
+      isAudioProcess: isAudioProcess
     ))
 
     # 3. Build C-ABI companion wrapper body
@@ -465,6 +481,24 @@ when declared(""" & nameStr & """):
     result = processExportTs(target)
     gModuleName = prevMod
 
+template audioProcess*() {.pragma.}
+
+macro exporttsWorklet*(args: varargs[untyped]): untyped =
+  ## Macro pragma for marking an AudioWorklet real-time audio process callback
+  if args.len == 0: return newEmptyNode()
+  let target = args[^1]
+  if target.kind == nnkProcDef:
+    var procDef = target
+    var newPragmas = newNimNode(nnkPragma)
+    if procDef[4].kind == nnkPragma:
+      for p in procDef[4]: newPragmas.add(p)
+    newPragmas.add(ident("audioProcess"))
+    procDef[4] = newPragmas
+    result = processExportTs(procDef)
+  else:
+    result = processExportTs(target)
+
+
 macro importts*(body: untyped): untyped =
   # proc jsFetch*(url: cstring): Future[seq[byte]] {.importts.}
   expectKind(body, nnkProcDef)
@@ -538,10 +572,19 @@ macro emitTsGlueFiles*(moduleName: static[string], outputDir: static[string] = "
     if p.cabiName notin symbols:
       symbols.add(p.cabiName)
 
-  let manifest = %* {
+  var audioProcessCabi = ""
+  for p in gExportedProcs:
+    if p.isAudioProcess:
+      audioProcessCabi = p.cabiName
+      break
+
+  var manifest = %* {
     "module": moduleName,
     "symbols": symbols
   }
+  if audioProcessCabi.len > 0:
+    manifest["audioProcess"] = %audioProcessCabi
+
   let manifestPath = outputDir & "/_nimts_exports.json"
   writeFile(manifestPath, pretty(manifest))
   result = newEmptyNode()

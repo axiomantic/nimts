@@ -25,6 +25,7 @@ type
     isAsync*: bool
     isHandleReturn*: bool
     returnKind*: string # "void", "primitive", "string", "bytes", "handle", "object", "promise"
+    isAudioProcess*: bool
 
   TsType* = object
     name*: string

@@ -25,6 +25,11 @@
       "import": "./dist/worker.js",
       "types": "./dist/worker.d.ts",
       "default": "./dist/worker.js"
+    },
+    "./worklet": {
+      "import": "./dist/worklet.js",
+      "types": "./dist/worklet.d.ts",
+      "default": "./dist/worklet.js"
     }
   },
   "files": [
