@@ -279,13 +279,13 @@ For all parallel development tracks:
   - *Verification*: Vitest test suite in `tests/test_worklet.test.ts`.
   - *Weave*: `vine gate && vine weave`
 
-- [ ] **Task 8.4: Multi-Repo Nimble Path & Linker Flag Discovery in `vite-plugin-nimts`** (`nimts-implementer`)
+- [x] **Task 8.4: Multi-Repo Nimble Path & Linker Flag Discovery in `vite-plugin-nimts`** (`nimts-implementer`)
   - *Strand*: `strand/task-8-4-vite-multi-repo`
   - *Lock*: `rhizo lock file:ts/vite-plugin-nimts.ts 1200 --fencing`
-  - *Provider*: `ts/vite-plugin-nimts.ts`
-  - *Consumer / Call-Site*: Support `nimFlags`, `nimPaths` (`--path:...`), `clangFlags` (`--passC:...`), `linkerFlags` (`--passL:...`), and `cwd` options. Automatically export all symbols referenced in `_nimts_exports.json` manifest via `-Wl,--export=...`. Track transitive `.nim` imports so file modifications trigger Vite HMR.
-  - *Verification*: Vitest unit tests in `tests/test_vite_plugin.test.ts`.
-  - *Weave*: `vine gate && vine weave`
+  - *Provider*: `ts/vite-plugin-nimts.ts`, `src/nimts/macros.nim`, `tests/test_vite_plugin.test.ts`
+  - *Consumer / Call-Site*: Support `nimFlags`, `nimPaths` (`--path:...`), `clangFlags` (`--passC:...`), `linkerFlags` (`--passL:...`), `cwd`, and `watchGlobs` options. Automatically export all symbols referenced in `_nimts_exports.json` manifest via `-Wl,--export=...` (and `--export=...` in wasm-ld). Track transitive `.nim` imports and watch globs so file modifications trigger Vite HMR and invalidate cache.
+  - *Verification*: 19 Vitest unit tests in `tests/test_vite_plugin.test.ts` passing 100% green.
+  - *Weave*: Woven in commit `fe6b976` and pushed to `origin/main`.
 
 
 
