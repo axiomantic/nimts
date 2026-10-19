@@ -48,6 +48,11 @@ proc loadNimTsExports*(modulePath: cstring, wasmPath: cstring = ""): Future[JsOb
   let client = await loadNimTsModule(modulePath, wasmPath)
   return client.exports
 
+proc loadNimTsExportsTyped*[T](modulePath: cstring, wasmPath: cstring = ""): Future[T] {.async.} =
+  ## Convenience helper that dynamically imports a NimTS module and returns its `exports` typed as `T`.
+  let client = await loadNimTsModule(modulePath, wasmPath)
+  return cast[T](client.exports)
+
 proc toUint8Array*(data: openArray[byte]): JsObject =
   ## Converts a Nim openArray[byte] or seq[byte] into a JavaScript `Uint8Array`.
   var arr: JsObject

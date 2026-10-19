@@ -64,6 +64,18 @@ else:
     let directSum = directExports.addNumbers(50, 50).to(int32)
     assertEqual(directSum, 100'i32, "directExports.addNumbers(50, 50)")
 
+    # Test 6: Typed loadNimTsExports[T] interface with sync and async await calls
+    type TestModuleExports = ref object
+      addNumbers*: proc(a, b: int32): int32 {.nimcall.}
+      asyncAdd*: proc(a, b: int32): Future[int32] {.nimcall.}
+
+    let typedModule = await loadNimTsExportsTyped[TestModuleExports](modPath, wasmPath)
+    let syncResult = typedModule.addNumbers(17, 25)
+    assertEqual(syncResult, 42'i32, "typedModule.addNumbers(17, 25) sync")
+
+    let asyncResult = await typedModule.asyncAdd(20, 22)
+    assertEqual(asyncResult, 42'i32, "await typedModule.asyncAdd(20, 22) async")
+
     echo "=== All Nim-to-JS Client Integration Tests Passed! ==="
 
   discard runIntegrationTests()

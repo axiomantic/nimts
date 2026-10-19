@@ -42,6 +42,7 @@ import nimts/js_client
 # Core Helpers:
 proc loadNimTsModule*(modulePath: cstring, wasmPath: cstring = ""): Future[NimTsJsModule] {.async.}
 proc loadNimTsExports*(modulePath: cstring, wasmPath: cstring = ""): Future[JsObject] {.async.}
+proc loadNimTsExportsTyped*[T](modulePath: cstring, wasmPath: cstring = ""): Future[T] {.async.}
 proc toFuture*[T](promise: JsObject): Future[T]
 proc toUint8Array*(data: openArray[byte]): JsObject
 proc toSeqByte*(arr: JsObject): seq[byte]

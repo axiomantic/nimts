@@ -191,9 +191,9 @@ worker.terminate();
 
 ### Alternative: Building the Frontend in Nim (`nim js`)
 
-If you prefer writing your frontend UI entirely in Nim (using `nim js`, standard DOM manipulation, or UI frameworks like [Karax](https://github.com/karaxnim/karax)), you don't need TypeScript at all!
+If you write your browser frontend in Nim using its JavaScript backend (`nim js` with `std/dom` or frameworks like [Karax](https://github.com/karaxnim/karax)), you don't need TypeScript at all!
 
-NimTS provides a client module (`nimts/js_client`) that allows your `nim js` frontend to load and call your high-performance `nimts` WASM module with native Nim signatures:
+NimTS provides a client module (`nimts/js_client`) that allows your `nim js` frontend to load and call your high-performance `nimts` WASM module with native Nim signatures, supporting both synchronous direct calls and asynchronous `await` operations:
 
 ```nim
 # src/frontend.nim
@@ -202,23 +202,39 @@ import std/[dom, asyncjs]
 import nimts/js_client
 
 # 1. Define the typed interface matching the WASM module's exports
-type SynthExports = ref object of NimTsJsModule
+type SynthExports = ref object
   addNumbers*: proc(a, b: int32): int32 {.nimcall.}
   greet*: proc(name: cstring): cstring {.nimcall.}
-  computeAsync*: proc(x: int32): PromiseJs[int32] {.nimcall.}
+  computeAsync*: proc(x: int32): Future[int32] {.nimcall.}
 
 # 2. Main DOM entry point
 proc main() {.async.} =
-  # Load and initialize the WASM module
-  let wasm = await loadNimTsExports[SynthExports]("/wasm/synth.wasm")
+  # Load and initialize the WASM module with typed exports
+  let wasm = await loadNimTsExportsTyped[SynthExports]("/wasm/synth.js", "/wasm/synth.wasm")
 
-  let btn = document.getElementById("calc-btn")
+  let btnSync = document.getElementById("calc-sync-btn")
+  let btnAsync = document.getElementById("calc-async-btn")
   let output = document.getElementById("result-display")
 
-  btn.addEventListener("click", proc(e: Event) =
-    # Call high-speed WASM routines directly from your Nim JS code!
+  # -------------------------------------------------------------------------
+  # 1. Direct Synchronous Execution (Sub-nanosecond register speed)
+  # -------------------------------------------------------------------------
+  btnSync.addEventListener("click", proc(e: Event) =
+    # Instant synchronous call directly into WASM registers
     let total = wasm.addNumbers(17, 25)
-    output.textContent = "Computed in WASM: " & $total
+    output.textContent = "Sync result from WASM: " & $total
+  )
+
+  # -------------------------------------------------------------------------
+  # 2. Asynchronous Execution with await (std/asyncjs)
+  # -------------------------------------------------------------------------
+  btnAsync.addEventListener("click", proc(e: Event) =
+    # Asynchronous call awaiting WASM result without blocking UI rendering
+    discard (proc() {.async.} =
+      output.textContent = "Computing async in WASM..."
+      let total = await wasm.computeAsync(42)
+      output.textContent = "Async result from WASM: " & $total
+    )()
   )
 
 discard main()
