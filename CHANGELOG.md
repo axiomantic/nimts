@@ -34,6 +34,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Authored [Emscripten Runtime Backend (`wasm32-unknown-emscripten`)](docs/guide/backend-emscripten.md) detailing `emcc` virtual filesystem (`FS`) and POSIX libc shims.
 - **Comprehensive Memory & GC Guide**:
   - Authored [Memory Management, Stateful Handles & Garbage Collection](docs/guide/stateful-handles.md) detailing ARC/ORC destructors, zero GC pause guarantees, ephemeral call lifecycles, and leak hazard mitigations.
+- Add multi-repo paths, linker flags discovery, and manifest export in vite-plugin-nimts
 
 ### Changed
 - **Honest Concurrency**: Purged single-threaded fake async/await heuristic (`poll()` loop) in favor of true off-thread Web Worker execution.
