@@ -2,7 +2,7 @@
 
 A critical architectural reality of the browser environment is that **standard WebAssembly instances execute synchronously on the caller's thread**.
 
-NimTS provides a clear, honest model for asynchronous programming, background execution, and WebAssembly threading.
+NimTS provides a clear, predictable model for asynchronous programming, background execution, and WebAssembly threading.
 
 ---
 
