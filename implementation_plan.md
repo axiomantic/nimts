@@ -263,13 +263,13 @@ For all parallel development tracks:
   - *Verification*: `nimble test` (12/12) and `npm test` (89/89) verifying direct TypedArray serialization and zero-copy performance.
   - *Weave*: Woven in commit `012cfe6` and pushed to `origin/main`.
 
-- [ ] **Task 8.2: Zero-Copy Pinned TypedArray Views (`NimTsView[T]` / `{.exporttsView.}`)** (`nimts-architect`)
+- [x] **Task 8.2: Zero-Copy Pinned TypedArray Views (`NimTsView[T]` / `{.exporttsView.}`)** (`nimts-architect`)
   - *Strand*: `strand/task-8-2-pinned-views`
   - *Lock*: `rhizo lock file:src/nimts/types.nim 1200 --fencing`
   - *Provider*: `src/nimts/types.nim`, `src/nimts/codegen.nim`, `ts/runtime.ts`
   - *Consumer / Call-Site*: Provide `NimTsView*[T]` type and `initNimTsView*[T]` constructors in Nim. Export `(ptr: uint32, len: uint32)` descriptor. In TypeScript, project directly as `TypedArray` view over `wasmMemory.buffer` with dynamic re-attachment on `memory.grow`.
-  - *Verification*: Unit tests in `tests/test_memory.nim` and `tests/test_runtime.test.ts`.
-  - *Weave*: `vine gate && vine weave`
+  - *Verification*: Unit tests in `tests/test_memory.nim`, `tests/test_runtime.test.ts`, and `tests/test_wasm_sync_and_async.test.ts` (103 Vitest tests passing 100% green).
+  - *Weave*: Woven in commit `a10e601` and pushed to `origin/main`.
 
 - [x] **Task 8.3: First-Class WebAudio AudioWorklet Support (`@axiomantic/nimts/worklet` & `?worklet`)** (`nimts-implementer`)
   - *Strand*: `strand/task-8-3-audioworklet`
