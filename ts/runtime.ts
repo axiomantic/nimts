@@ -81,6 +81,106 @@ export class GpuBufferSlice<T = any> {
   }
 }
 
+export class NimTsView<T extends TypedArray = TypedArray> {
+  readonly pointer: number;
+  readonly length: number;
+  readonly byteLength: number;
+  readonly ctor: TypedArrayConstructor<T>;
+  private _runtime: any;
+  private _cachedBuffer: ArrayBuffer | null = null;
+  private _cachedView: T | null = null;
+
+  constructor(pointer: number, length: number, ctor: TypedArrayConstructor<T>, runtime?: any) {
+    this.pointer = pointer;
+    this.length = length;
+    this.ctor = ctor;
+    this.byteLength = length * (ctor.BYTES_PER_ELEMENT || 1);
+    this._runtime = runtime;
+  }
+
+  private _getBuffer(): ArrayBuffer {
+    let buffer: ArrayBuffer | null = null;
+    if (typeof this._runtime === 'function') {
+      const res = this._runtime();
+      buffer = res?.buffer || res;
+    } else if (this._runtime && typeof this._runtime.getMemory === 'function') {
+      buffer = this._runtime.getMemory().buffer;
+    } else if (this._runtime && this._runtime.buffer instanceof ArrayBuffer) {
+      buffer = this._runtime.buffer;
+    }
+    if (!buffer) {
+      throw new Error('Cannot access WebAssembly memory buffer for NimTsView');
+    }
+    return buffer;
+  }
+
+  get view(): T {
+    const currentBuffer = this._getBuffer();
+    const isDetached = (currentBuffer as any).detached || (this._cachedBuffer && (this._cachedBuffer as any).detached);
+    if (!this._cachedView || this._cachedBuffer !== currentBuffer || isDetached || this._cachedView.byteLength === 0) {
+      this._cachedBuffer = currentBuffer;
+      this._cachedView = new this.ctor(currentBuffer, this.pointer, this.length);
+    }
+    return this._cachedView;
+  }
+
+  get buffer(): ArrayBuffer {
+    return this.view.buffer as ArrayBuffer;
+  }
+
+  set(array: ArrayLike<number>, offset = 0): void {
+    (this.view as any).set(array, offset);
+  }
+
+  subarray(begin?: number, end?: number): T {
+    return (this.view as any).subarray(begin, end);
+  }
+
+  slice(begin?: number, end?: number): T {
+    return (this.view as any).slice(begin, end);
+  }
+
+  [Symbol.iterator](): IterableIterator<number> {
+    return (this.view as any)[Symbol.iterator]();
+  }
+}
+
+export function createNimTsView<T extends TypedArray = TypedArray>(
+  pointer: number,
+  length: number,
+  ctor: TypedArrayConstructor<T>,
+  runtime?: any
+): NimTsView<T> & T {
+  const instance = new NimTsView<T>(pointer, length, ctor, runtime);
+  return new Proxy(instance as any, {
+    get(target, prop, receiver) {
+      if (prop in target) {
+        const val = Reflect.get(target, prop, receiver);
+        if (typeof val === 'function') {
+          return val.bind(target);
+        }
+        return val;
+      }
+      const view = target.view as any;
+      const val = Reflect.get(view, prop, view);
+      if (typeof val === 'function') {
+        return val.bind(view);
+      }
+      return val;
+    },
+    set(target, prop, value, receiver) {
+      if (prop in target) {
+        return Reflect.set(target, prop, value, receiver);
+      }
+      const view = target.view as any;
+      return Reflect.set(view, prop, value, view);
+    },
+    has(target, prop) {
+      return prop in target || prop in (target.view as any);
+    }
+  });
+}
+
 export interface NimTsIterator<T> extends IterableIterator<T> {
   readonly handleId: number;
   next(): IteratorResult<T, undefined>;
@@ -248,6 +348,14 @@ export class NimTsRuntime {
   public createGpuBufferSlice<T = any>(byteLength: number, alignment: number = 256, len: number = 0): GpuBufferSlice<T> {
     const ptr = this.allocAligned(byteLength, alignment);
     return new GpuBufferSlice<T>(ptr, byteLength, alignment, len, this);
+  }
+
+  public createView<T extends TypedArray>(
+    pointer: number,
+    length: number,
+    ctor: TypedArrayConstructor<T>
+  ): NimTsView<T> & T {
+    return createNimTsView<T>(pointer, length, ctor, this);
   }
 
   public destroyHandle(handleId: number): void {

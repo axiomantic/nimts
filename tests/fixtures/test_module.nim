@@ -121,6 +121,21 @@ proc streamIdiomaticChannel*(count: int32): Channel[int32] {.exportts.} =
     discard ch.send(i * 10)
   return ch
 
+var gPinnedBuffer: array[8, float32] = [1.0'f32, 2.0'f32, 3.0'f32, 4.0'f32, 5.0'f32, 6.0'f32, 7.0'f32, 8.0'f32]
+
+proc getPinnedAudioBuffer*(): NimTsView[float32] {.exportts.} =
+  initNimTsView(gPinnedBuffer)
+
+proc mutatePinnedAudioBuffer*(index: int32, value: float32) {.exportts.} =
+  if index >= 0 and index < gPinnedBuffer.len.int32:
+    gPinnedBuffer[index] = value
+
+proc sumView*(view: NimTsView[float32]): float32 {.exportts.} =
+  var s = 0.0'f32
+  for i in 0 ..< view.len:
+    s += view[i]
+  return s
+
 proc audioInit*(rate: int32): int32 {.exportts(module = "audio").} =
   rate * 2
 
@@ -129,3 +144,4 @@ proc videoInit*(fps: int32): int32 {.exportts(module = "video").} =
 
 static:
   emitTsGlueFiles("test_module", "tests/fixtures")
+

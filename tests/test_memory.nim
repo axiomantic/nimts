@@ -264,3 +264,41 @@ suite "NimTS Memory and Handle Management":
     check slice.data == nil
     check slice.len == 0
     check slice.byteLength == 0
+
+  test "NimTsView[T] zero-copy typed view and packing":
+    var view = newNimTsView[float32](128)
+    check view.data != nil
+    check view.len == 128
+    check view.len() == 128
+    check view.byteLength == 128 * sizeof(float32).int32
+    check view.rawPointer != nil
+    check view.toPointer != nil
+
+    for i in 0 ..< 128:
+      view[i] = float32(i) * 0.5'f32
+
+    for i in 0 ..< 128:
+      check view[i] == float32(i) * 0.5'f32
+
+    let packed = packNimTsViewResult(view)
+    check packed != 0'u64
+    let expectedPtr = cast[uint32](cast[uint](view.data))
+    let expectedLen = 128'u32
+    check packed == ((uint64(expectedLen) shl 32) or uint64(expectedPtr))
+    check gLastResultPtr == view.data
+    check gLastResultLen == 128
+
+    # Test initNimTsView from openArray
+    var buffer: array[4, int32] = [10'i32, 20'i32, 30'i32, 40'i32]
+    var openView = initNimTsView(buffer)
+    check openView.len == 4
+    check openView.byteLength == 16
+    check openView[0] == 10
+    check openView[3] == 40
+    openView[1] = 99
+    check buffer[1] == 99
+
+    view.free()
+    check view.data == nil
+    check view.len == 0
+    check view.byteLength == 0

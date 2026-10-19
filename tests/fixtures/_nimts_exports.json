@@ -45,6 +45,9 @@
     "nimts_streamWords",
     "nimts_streamNumbers",
     "nimts_streamIdiomaticChannel",
+    "nimts_getPinnedAudioBuffer",
+    "nimts_mutatePinnedAudioBuffer",
+    "nimts_sumView",
     "nimts_audio_audioInit",
     "nimts_video_videoInit"
   ]

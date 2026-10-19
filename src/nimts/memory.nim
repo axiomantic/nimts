@@ -85,11 +85,43 @@ proc free*[T](slice: var GpuBufferSlice[T]) =
     slice.len = 0
     slice.byteLength = 0
 
-proc nimts_get_last_result_ptr*(): pointer {.exportc: "nimts_get_last_result_ptr", cdecl.} =
-  gLastResultPtr
+proc initNimTsView*[T](p: ptr T, len: int32): NimTsView[T] {.inline.} =
+  if p == nil or len <= 0:
+    NimTsView[T](data: nil, len: 0, byteLength: 0)
+  else:
+    NimTsView[T](
+      data: cast[ptr UncheckedArray[T]](p),
+      len: len,
+      byteLength: len * sizeof(T).int32
+    )
 
-proc nimts_get_last_result_len*(): int32 {.exportc: "nimts_get_last_result_len", cdecl.} =
-  gLastResultLen
+proc initNimTsView*[T](s: var openArray[T]): NimTsView[T] {.inline.} =
+  if s.len == 0:
+    NimTsView[T](data: nil, len: 0, byteLength: 0)
+  else:
+    NimTsView[T](
+      data: cast[ptr UncheckedArray[T]](addr s[0]),
+      len: s.len.int32,
+      byteLength: (s.len * sizeof(T)).int32
+    )
+
+proc newNimTsView*[T](len: int32): NimTsView[T] =
+  if len <= 0:
+    return NimTsView[T](data: nil, len: 0, byteLength: 0)
+  let byteLen = len * sizeof(T).int32
+  let p = nimts_alloc(byteLen)
+  NimTsView[T](
+    data: cast[ptr UncheckedArray[T]](p),
+    len: len,
+    byteLength: byteLen
+  )
+
+proc free*[T](view: var NimTsView[T]) =
+  if view.data != nil:
+    nimts_free(cast[pointer](view.data))
+    view.data = nil
+    view.len = 0
+    view.byteLength = 0
 
 proc packBuffer*(p: pointer, len: int32): uint64 {.inline.} =
   gLastResultPtr = p
@@ -97,6 +129,15 @@ proc packBuffer*(p: pointer, len: int32): uint64 {.inline.} =
   let ptrVal = cast[uint32](cast[uint](p))
   let lenVal = cast[uint32](len)
   result = (uint64(lenVal) shl 32) or uint64(ptrVal)
+
+proc packNimTsViewResult*[T](view: NimTsView[T]): uint64 {.inline.} =
+  packBuffer(view.data, view.len)
+
+proc nimts_get_last_result_ptr*(): pointer {.exportc: "nimts_get_last_result_ptr", cdecl.} =
+  gLastResultPtr
+
+proc nimts_get_last_result_len*(): int32 {.exportc: "nimts_get_last_result_len", cdecl.} =
+  gLastResultLen
 
 proc allocStringResult*(s: string): uint64 =
   if s.len == 0:

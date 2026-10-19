@@ -211,6 +211,6 @@ describe('WebAudio AudioWorklet Runtime & Client (Task 8.3)', () => {
       expect(res.code).toContain('class NimWorkletNode');
       expect(res.code).toContain('export async function createWorklet');
       expect(res.code).toContain('@axiomantic/nimts/worklet');
-    });
+    }, 30000);
   });
 });

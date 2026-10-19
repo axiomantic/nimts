@@ -30,7 +30,12 @@ import {
   scaleFloats,
   sumInt32s,
   negateInt16s,
-  doubleFloat64s
+  doubleFloat64s,
+  getPinnedAudioBuffer,
+  mutatePinnedAudioBuffer,
+  sumView,
+  NimTsView,
+  getNimTsModule
 } from './fixtures/test_module.js';
 
 const WASM_FILE = path.resolve(__dirname, 'fixtures/test_module.wasm');
@@ -425,6 +430,74 @@ describe('NimTS WebAssembly Integration (Sync & Async)', () => {
         items.push(val);
       }
       expect(items).toEqual([10, 20, 30, 40, 50]);
+    });
+  });
+
+  describe('Zero-Copy Pinned TypedArray Views (NimTsView[T]) (Task 8.2)', () => {
+    it('returns a live zero-copy NimTsView over WASM memory without JSON or heap copies', () => {
+      const view = getPinnedAudioBuffer();
+      expect(view).toBeInstanceOf(NimTsView);
+      expect(view.length).toBe(8);
+      expect(view.byteLength).toBe(32);
+      expect(view.pointer).toBeGreaterThan(0);
+
+      // Verify initial buffer contents: [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0]
+      expect(view[0]).toBe(1.0);
+      expect(view[1]).toBe(2.0);
+      expect(view[7]).toBe(8.0);
+
+      // Verify sumView calculates 36.0 over the view
+      expect(sumView(view)).toBe(36.0);
+    });
+
+    it('mutations in JS are visible in Nim zero-copy', () => {
+      const view = getPinnedAudioBuffer();
+      view[0] = 100.0;
+      expect(view[0]).toBe(100.0);
+
+      // sumView: 100 + 2 + 3 + 4 + 5 + 6 + 7 + 8 = 135
+      expect(sumView(view)).toBe(135.0);
+
+      // Reset
+      view[0] = 1.0;
+    });
+
+    it('mutations in Nim are immediately visible in JS view without re-fetching', () => {
+      const view = getPinnedAudioBuffer();
+      expect(view[2]).toBe(3.0);
+
+      mutatePinnedAudioBuffer(2, 999.0);
+      expect(view[2]).toBe(999.0);
+
+      // Reset
+      mutatePinnedAudioBuffer(2, 3.0);
+      expect(view[2]).toBe(3.0);
+    });
+
+    it('preserves access and survives WebAssembly memory.grow() detachment', () => {
+      const view = getPinnedAudioBuffer();
+      expect(view[0]).toBe(1.0);
+      expect(view[7]).toBe(8.0);
+
+      const mod = getNimTsModule();
+      const mem = mod.memory as WebAssembly.Memory;
+      const oldBuffer = mem.buffer;
+
+      // Trigger memory.grow - detaches oldBuffer
+      mem.grow(1);
+      const newBuffer = mem.buffer;
+      expect(newBuffer).not.toBe(oldBuffer);
+
+      // View continues working seamlessly without throwing detached ArrayBuffer error
+      expect(view[0]).toBe(1.0);
+      expect(view[7]).toBe(8.0);
+
+      view[4] = 555.0;
+      expect(view[4]).toBe(555.0);
+      expect(sumView(view)).toBe(1.0 + 2.0 + 3.0 + 4.0 + 555.0 + 6.0 + 7.0 + 8.0);
+
+      // Reset
+      view[4] = 5.0;
     });
   });
 });

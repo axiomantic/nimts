@@ -4,7 +4,7 @@
 import { describe, it, expect, beforeAll, vi } from 'vitest';
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
-import { NimTsRuntime, GpuBufferSlice } from '../ts/runtime.js';
+import { NimTsRuntime, GpuBufferSlice, NimTsView, createNimTsView } from '../ts/runtime.js';
 
 const WASM_FILE = path.resolve(__dirname, 'fixtures/test_module.wasm');
 
@@ -232,6 +232,85 @@ describe('NimTsRuntime Unit Tests', () => {
       const slice = new GpuBufferSlice(100, 64, 256);
       expect(() => slice.writeToGpuBuffer(null, {})).toThrow(/WebGPU device is required/);
       expect(() => slice.writeToGpuBuffer({}, {})).toThrow(/does not support writeBuffer/);
+    });
+  });
+
+  describe('NimTsView & Zero-Copy Pinned TypedArray Views (Task 8.2)', () => {
+    it('createView returns a proxy view with pointer, length, and byteLength properties', async () => {
+      const runtime = new NimTsRuntime();
+      await runtime.init(wasmBytes);
+
+      const ptr = runtime.exports!.nimts_alloc(32);
+      const view = runtime.createView(ptr, 8, Float32Array);
+
+      expect(view).toBeInstanceOf(NimTsView);
+      expect(view.pointer).toBe(ptr);
+      expect(view.length).toBe(8);
+      expect(view.byteLength).toBe(32);
+      expect(view.buffer).toBe(runtime.getMemory().buffer);
+      expect(view.view).toBeInstanceOf(Float32Array);
+
+      // Access elements via index
+      view[0] = 1.5;
+      view[7] = 9.25;
+      expect(view[0]).toBeCloseTo(1.5);
+      expect(view[7]).toBeCloseTo(9.25);
+
+      // Iteration
+      const elements: number[] = [];
+      for (const el of view) {
+        elements.push(el);
+      }
+      expect(elements.length).toBe(8);
+      expect(elements[0]).toBeCloseTo(1.5);
+
+      // Set, subarray, slice methods
+      view.set([10, 20], 1);
+      expect(view[1]).toBe(10);
+      expect(view[2]).toBe(20);
+
+      const sub = view.subarray(1, 3);
+      expect(sub.length).toBe(2);
+      expect(sub[0]).toBe(10);
+
+      const sliced = view.slice(1, 3);
+      expect(sliced).toBeInstanceOf(Float32Array);
+      expect(sliced[0]).toBe(10);
+
+      runtime.free(ptr);
+    });
+
+    it('dynamically re-attaches view when memory.grow() detaches the underlying ArrayBuffer', async () => {
+      const runtime = new NimTsRuntime();
+      await runtime.init(wasmBytes);
+
+      const ptr = runtime.exports!.nimts_alloc(16);
+      const view = runtime.createView(ptr, 4, Float32Array);
+
+      view[0] = 42.0;
+      view[1] = 84.0;
+      expect(view[0]).toBe(42.0);
+      expect(view[1]).toBe(84.0);
+
+      const oldBuffer = runtime.getMemory().buffer;
+
+      // Grow WebAssembly memory by 1 page (64KB) - this detaches oldBuffer
+      runtime.getMemory().grow(1);
+
+      const newBuffer = runtime.getMemory().buffer;
+      expect(newBuffer).not.toBe(oldBuffer);
+
+      // Accessing view after memory.grow() must NOT throw "detached ArrayBuffer"
+      expect(() => view[0]).not.toThrow();
+      expect(view[0]).toBe(42.0);
+      expect(view[1]).toBe(84.0);
+
+      // Mutating view on grown memory works seamlessly
+      view[2] = 168.0;
+      expect(view[2]).toBe(168.0);
+      expect(view.buffer).toBe(newBuffer);
+
+      runtime.free(ptr);
     });
   });
 });

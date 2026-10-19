@@ -29,6 +29,26 @@ type
     byteLength*: int32
     alignment*: int32
 
+  NimTsView*[T] = object
+    data*: ptr UncheckedArray[T]
+    len*: int32
+    byteLength*: int32
+
+proc `[]`*[T](v: NimTsView[T], idx: int): lent T {.inline.} =
+  v.data[idx]
+
+proc `[]=`*[T](v: NimTsView[T], idx: int, val: T) {.inline.} =
+  v.data[idx] = val
+
+proc len*[T](v: NimTsView[T]): int {.inline.} =
+  v.len.int
+
+proc rawPointer*[T](v: NimTsView[T]): pointer {.inline.} =
+  cast[pointer](v.data)
+
+proc toPointer*[T](v: NimTsView[T]): pointer {.inline.} =
+  cast[pointer](v.data)
+
 proc `==`*[T](a, b: NimTsHandle[T]): bool = a.HandleId == b.HandleId
 proc `$`*[T](h: NimTsHandle[T]): string = "NimTsHandle[" & $typeof(T) & "](" & $h.HandleId & ")"
 

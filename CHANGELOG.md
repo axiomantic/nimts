@@ -10,6 +10,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Zero-Copy Pinned TypedArray Views (`NimTsView[T]`)**:
+  - Implemented `NimTsView*[T]` in `src/nimts/types.nim` and `initNimTsView` / `newNimTsView` in `src/nimts/memory.nim`, exposing live zero-copy views into Nim data structures across the C-ABI boundary via `packNimTsViewResult`.
+  - Added `NimTsView` class and `createNimTsView` proxy factory in `ts/runtime.ts` and `src/nimts/codegen.nim`.
+  - Enabled direct array indexing (`view[i]`), slice/subarray operations, iterator support (`for..of`), and live bidirectional mutations between Nim and JavaScript/TypeScript without intermediate allocations or JSON serialization.
+  - Implemented dynamic detachment resilience: automatically detects WebAssembly `memory.grow()` reallocations and transparently re-binds the underlying TypedArray view to the new `ArrayBuffer`.
+  - Added `createView<T>(pointer, length, ctor)` helper method to `NimTsRuntime`.
 - **Binary TypedArray ABI Marshaling for `seq[T]` / `openArray[T]`**:
   - Implemented raw binary TypedArray marshaling across the WASM C-ABI boundary for numeric slices (`openArray`/`seq` of `byte`/`uint8`, `int8`, `int16`, `uint16`, `int32`, `uint32`, `float32`, `float64`, `int64`, `uint64`).
   - Completely bypassed JSON text serialization and string parsing for numeric collections, replacing them with direct binary pointer/length descriptor passing (`packBuffer`) and `.slice()` views over `wasmMemory.buffer`.

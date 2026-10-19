@@ -88,6 +88,12 @@ proc classifyParamType(typeNode: NimNode): (ParamKind, string, string) =
   elif typeRepr == "NimTsChannel" or typeRepr == "Channel":
     return (pkHandle, typeRepr, "NimTsChannel<any>")
 
+  if typeRepr.startsWith("NimTsView[") and typeRepr.endsWith("]"):
+    let inner = typeRepr[10 .. ^2].strip
+    let tsArray = numericElemToTsArray(inner)
+    let viewArray = if tsArray.len > 0: tsArray else: "Uint8Array"
+    return (pkBytes, typeRepr, "NimTsView<" & viewArray & ">")
+
   let arrayElem = getArrayElemType(typeRepr)
   let tsArray = numericElemToTsArray(arrayElem)
   if tsArray.len > 0:
@@ -172,6 +178,12 @@ proc classifyReturnType(retNode: NimNode): (string, string, bool, string) =
     return (retRepr, "NimTsChannel<" & innerTs & ">", false, "channel:" & innerKind)
   if retRepr == "NimTsChannel" or retRepr == "Channel":
     return (retRepr, "NimTsChannel<any>", false, "channel:object")
+
+  if retRepr.startsWith("NimTsView[") and retRepr.endsWith("]"):
+    let inner = retRepr[10 .. ^2].strip
+    let tsArray = numericElemToTsArray(inner)
+    let viewArray = if tsArray.len > 0: tsArray else: "Uint8Array"
+    return (retRepr, "NimTsView<" & viewArray & ">", false, "view:" & viewArray)
 
   let retElem = getArrayElemType(retRepr)
   let retTsArray = numericElemToTsArray(retElem)
@@ -301,12 +313,17 @@ proc processExportTs*(body: NimNode): NimNode =
         of pkBytes:
           let ptrIdent = ident(paramName & "_ptr")
           let lenIdent = ident(paramName & "_len")
-          let elemType = getArrayElemType(paramNimType)
+          let elemType = if paramNimType.startsWith("NimTsView["):
+            paramNimType[10 .. ^2].strip
+          else:
+            getArrayElemType(paramNimType)
           let elemNimType = if elemType == "byte": "uint8" elif elemType == "int": "int32" elif elemType == "uint": "uint32" elif elemType == "float": "float32" else: elemType
           wrapperFormalParams.add(newIdentDefs(ptrIdent, parseExpr("ptr " & elemNimType)))
           wrapperFormalParams.add(newIdentDefs(lenIdent, ident("int32")))
           if paramNimType.startsWith("openArray"):
             callArgs.add(parseExpr("(if " & lenIdent.strVal & " > 0 and " & ptrIdent.strVal & " != nil: toOpenArray(cast[ptr UncheckedArray[" & elemType & "]](" & ptrIdent.strVal & "), 0, " & lenIdent.strVal & " - 1) else: toOpenArray(cast[ptr UncheckedArray[" & elemType & "]](nil), 0, -1))"))
+          elif paramNimType.startsWith("NimTsView["):
+            callArgs.add(parseExpr("initNimTsView[" & elemType & "](" & ptrIdent.strVal & ", " & lenIdent.strVal & ")"))
           else:
             unpackStmts.add(parseStmt("let " & paramName & " = readTypedArray[" & elemType & "](" & ptrIdent.strVal & ", " & lenIdent.strVal & ")"))
             callArgs.add(ident(paramName))
@@ -368,6 +385,8 @@ try:
     return allocStringResult(res)
   elif typeof(res) is (seq[byte] or seq[uint8] or seq[int8] or seq[int16] or seq[uint16] or seq[int32] or seq[int] or seq[uint32] or seq[uint] or seq[float32] or seq[float] or seq[float64] or seq[int64] or seq[uint64]):
     return allocTypedArrayResult(res)
+  elif (when declared(NimTsView): typeof(res) is NimTsView else: false):
+    return packNimTsViewResult(res)
   elif (when declared(Future): typeof(res) is Future else: false):
     return bridgeFutureToPromise(res)
   elif (when declared(NimTsIterator): typeof(res) is NimTsIterator else: false):
@@ -387,6 +406,8 @@ except CatchableError as e:
     return 0'u64
   elif RetType is (seq[byte] or seq[uint8] or seq[int8] or seq[int16] or seq[uint16] or seq[int32] or seq[int] or seq[uint32] or seq[uint] or seq[float32] or seq[float] or seq[float64] or seq[int64] or seq[uint64]):
     return 0'u64
+  elif (when declared(NimTsView): RetType is NimTsView else: false):
+    return 0'u64
   elif (when declared(Future): RetType is Future else: false):
     return 0'i32
   elif (when declared(NimTsIterator): RetType is NimTsIterator else: false):
@@ -405,6 +426,8 @@ except Defect as e:
   elif RetType is string:
     return 0'u64
   elif RetType is (seq[byte] or seq[uint8] or seq[int8] or seq[int16] or seq[uint16] or seq[int32] or seq[int] or seq[uint32] or seq[uint] or seq[float32] or seq[float] or seq[float64] or seq[int64] or seq[uint64]):
+    return 0'u64
+  elif (when declared(NimTsView): RetType is NimTsView else: false):
     return 0'u64
   elif (when declared(Future): RetType is Future else: false):
     return 0'i32

@@ -99,10 +99,26 @@ proc mapNimTypeToTs*(nimType: string): string =
     if t.startsWith("GpuBufferSlice[") and t.endsWith("]"):
       let inner = t[15 .. ^2]
       return "GpuBufferSlice<" & mapNimTypeToTs(inner) & ">"
+    if t.startsWith("NimTsView[") and t.endsWith("]"):
+      let inner = t[10 .. ^2].strip
+      case inner
+      of "byte", "uint8": return "NimTsView<Uint8Array>"
+      of "int8": return "NimTsView<Int8Array>"
+      of "int16": return "NimTsView<Int16Array>"
+      of "uint16": return "NimTsView<Uint16Array>"
+      of "int", "int32": return "NimTsView<Int32Array>"
+      of "uint", "uint32": return "NimTsView<Uint32Array>"
+      of "float", "float32": return "NimTsView<Float32Array>"
+      of "float64": return "NimTsView<Float64Array>"
+      of "int64": return "NimTsView<BigInt64Array>"
+      of "uint64": return "NimTsView<BigUint64Array>"
+      else: return "NimTsView<Uint8Array>"
     if t == "Channel" or t == "NimTsChannel":
       return "NimTsChannel<any>"
     if t == "GpuBufferSlice":
       return "GpuBufferSlice<any>"
+    if t == "NimTsView":
+      return "NimTsView<any>"
     return t
 
 proc generateDts*(meta: TsModuleMeta): string =
@@ -149,6 +165,21 @@ proc generateDts*(meta: TsModuleMeta): string =
   lines.add("  dispose(): void;")
   lines.add("}")
   lines.add("")
+  lines.add("export declare class NimTsView<T = any> {")
+  lines.add("  readonly pointer: number;")
+  lines.add("  readonly length: number;")
+  lines.add("  readonly byteLength: number;")
+  lines.add("  readonly view: T;")
+  lines.add("  readonly buffer: ArrayBuffer;")
+  lines.add("  constructor(pointer: number, length: number, ctor: any, runtime?: any);")
+  lines.add("  [index: number]: number;")
+  lines.add("  [Symbol.iterator](): IterableIterator<number>;")
+  lines.add("  set(array: ArrayLike<number>, offset?: number): void;")
+  lines.add("  subarray(begin?: number, end?: number): T;")
+  lines.add("  slice(begin?: number, end?: number): T;")
+  lines.add("}")
+  lines.add("")
+  lines.add("export declare function createNimTsView<T = any>(pointer: number, length: number, ctor: any, runtime?: any): NimTsView<T> & T;")
   lines.add("export declare function createGpuBufferSlice<T = any>(byteLength: number, alignment?: number, len?: number): GpuBufferSlice<T>;")
   lines.add("export declare function nimts_alloc_aligned(size: number, alignment: number): number;")
   lines.add("export declare function nimts_free_aligned(ptr: number): void;")
@@ -242,7 +273,10 @@ proc generateProcBody(p: TsProc, fnName: string, isExported: bool, meta: TsModul
     of "number", "boolean", "bigint":
       callArgs.add(param.name)
     else:
-      if param.nimType.contains("Handle") or meta.types.anyIt(it.name == param.tsType and it.isHandle):
+      if param.tsType.startsWith("NimTsView<") or param.tsType == "NimTsView":
+        callArgs.add(param.name & ".pointer")
+        callArgs.add(param.name & ".length")
+      elif param.nimType.contains("Handle") or meta.types.anyIt(it.name == param.tsType and it.isHandle):
         callArgs.add(param.name & ".handleId")
       else:
         let varName = "_" & param.name & "_buf"
@@ -303,6 +337,11 @@ proc generateProcBody(p: TsProc, fnName: string, isExported: bool, meta: TsModul
       lines.add("    const arr = _readTypedArray(ptr, len, " & arrayName & ");")
       lines.add("    _free(ptr);")
       lines.add("    return arr;")
+    elif p.returnKind.startsWith("view:"):
+      let arrayName = p.returnKind[5 .. ^1]
+      lines.add("    const packed = " & rawCall & ";")
+      lines.add("    const { ptr, len } = _unpackResult64(packed);")
+      lines.add("    return createNimTsView(ptr, len, " & arrayName & ", _getBuffer);")
     elif p.returnKind == "handle":
       lines.add("    const handleId = " & rawCall & ";")
       lines.add("    return new " & p.returnTsType & "(handleId);")
@@ -526,6 +565,17 @@ proc generateJs*(meta: TsModuleMeta, relativeWasmPath: string = ""): string =
   lines.add("      return new Ctor(copy.buffer, 0, elemCount);")
   lines.add("    }")
   lines.add("    return _readTypedArray(ptrOrBuf, len, Ctor);")
+  lines.add("  }")
+  lines.add("  if (kind.startsWith('view:')) {")
+  lines.add("    const arrayName = kind.slice(5);")
+  lines.add("    const Ctor = globalThis[arrayName] || Uint8Array;")
+  lines.add("    if (typeof ptrOrBuf === 'number') {")
+  lines.add("      return createNimTsView(ptrOrBuf, len, Ctor, _getBuffer);")
+  lines.add("    }")
+  lines.add("    if (ptrOrBuf instanceof Uint8Array) {")
+  lines.add("      return new Ctor(ptrOrBuf.buffer, ptrOrBuf.byteOffset, len);")
+  lines.add("    }")
+  lines.add("    return ptrOrBuf;")
   lines.add("  }")
   lines.add("  if (kind === 'object') {")
   lines.add("    const s = (ptrOrBuf instanceof Uint8Array) ? (_textDecoder ? _textDecoder.decode(ptrOrBuf) : _utf8Decode(ptrOrBuf)) : _readString(ptrOrBuf, len);")
@@ -808,6 +858,90 @@ proc generateJs*(meta: TsModuleMeta, relativeWasmPath: string = ""): string =
   lines.add("  return new GpuBufferSlice(ptr, byteLength, alignment, len);")
   lines.add("}")
   lines.add("")
+  lines.add("export class NimTsView {")
+  lines.add("  constructor(pointer, length, ctor, runtime = null) {")
+  lines.add("    this.pointer = pointer;")
+  lines.add("    this.length = length;")
+  lines.add("    this.ctor = ctor;")
+  lines.add("    this.byteLength = length * (ctor.BYTES_PER_ELEMENT || 1);")
+  lines.add("    this._runtime = runtime;")
+  lines.add("    this._cachedBuffer = null;")
+  lines.add("    this._cachedView = null;")
+  lines.add("  }")
+  lines.add("  _getBuffer() {")
+  lines.add("    let buffer = null;")
+  lines.add("    if (typeof this._runtime === 'function') {")
+  lines.add("      const res = this._runtime();")
+  lines.add("      buffer = res?.buffer || res;")
+  lines.add("    } else if (this._runtime && typeof this._runtime.getMemory === 'function') {")
+  lines.add("      buffer = this._runtime.getMemory().buffer;")
+  lines.add("    } else if (this._runtime && this._runtime.buffer instanceof ArrayBuffer) {")
+  lines.add("      buffer = this._runtime.buffer;")
+  lines.add("    } else if (typeof _getBuffer === 'function') {")
+  lines.add("      buffer = _getBuffer();")
+  lines.add("    }")
+  lines.add("    if (!buffer) {")
+  lines.add("      throw new Error(\"Cannot access WebAssembly memory buffer for NimTsView\");")
+  lines.add("    }")
+  lines.add("    return buffer;")
+  lines.add("  }")
+  lines.add("  get view() {")
+  lines.add("    const currentBuffer = this._getBuffer();")
+  lines.add("    const isDetached = currentBuffer.detached || (this._cachedBuffer && this._cachedBuffer.detached);")
+  lines.add("    if (!this._cachedView || this._cachedBuffer !== currentBuffer || isDetached || this._cachedView.byteLength === 0) {")
+  lines.add("      this._cachedBuffer = currentBuffer;")
+  lines.add("      this._cachedView = new this.ctor(currentBuffer, this.pointer, this.length);")
+  lines.add("    }")
+  lines.add("    return this._cachedView;")
+  lines.add("  }")
+  lines.add("  get buffer() {")
+  lines.add("    return this.view.buffer;")
+  lines.add("  }")
+  lines.add("  set(array, offset = 0) {")
+  lines.add("    this.view.set(array, offset);")
+  lines.add("  }")
+  lines.add("  subarray(begin, end) {")
+  lines.add("    return this.view.subarray(begin, end);")
+  lines.add("  }")
+  lines.add("  slice(begin, end) {")
+  lines.add("    return this.view.slice(begin, end);")
+  lines.add("  }")
+  lines.add("  [Symbol.iterator]() {")
+  lines.add("    return this.view[Symbol.iterator]();")
+  lines.add("  }")
+  lines.add("}")
+  lines.add("")
+  lines.add("export function createNimTsView(pointer, length, ctor, runtime = null) {")
+  lines.add("  const instance = new NimTsView(pointer, length, ctor, runtime);")
+  lines.add("  return new Proxy(instance, {")
+  lines.add("    get(target, prop, receiver) {")
+  lines.add("      if (prop in target) {")
+  lines.add("        const val = Reflect.get(target, prop, target);")
+  lines.add("        if (typeof val === 'function') {")
+  lines.add("          return val.bind(target);")
+  lines.add("        }")
+  lines.add("        return val;")
+  lines.add("      }")
+  lines.add("      const view = target.view;")
+  lines.add("      const val = Reflect.get(view, prop, view);")
+  lines.add("      if (typeof val === 'function') {")
+  lines.add("        return val.bind(view);")
+  lines.add("      }")
+  lines.add("      return val;")
+  lines.add("    },")
+  lines.add("    set(target, prop, value, receiver) {")
+  lines.add("      if (prop in target) {")
+  lines.add("        return Reflect.set(target, prop, value, target);")
+  lines.add("      }")
+  lines.add("      const view = target.view;")
+  lines.add("      return Reflect.set(view, prop, value, view);")
+  lines.add("    },")
+  lines.add("    has(target, prop) {")
+  lines.add("      return prop in target || prop in target.view;")
+  lines.add("    }")
+  lines.add("  });")
+  lines.add("}")
+  lines.add("")
 
   # Emit procs with overload grouping and dispatching
   var procsByName = initOrderedTable[string, seq[TsProc]]()
@@ -857,7 +991,9 @@ proc generateJs*(meta: TsModuleMeta, relativeWasmPath: string = ""): string =
             else:
               conds.add("typeof " & argExpr & " === 'number'")
           else:
-            if param.nimType.contains("Handle") or meta.types.anyIt(it.name == param.tsType and it.isHandle):
+            if param.tsType.startsWith("NimTsView"):
+              conds.add("(" & argExpr & " instanceof NimTsView || (" & argExpr & " && typeof " & argExpr & ".pointer === 'number'))")
+            elif param.nimType.contains("Handle") or meta.types.anyIt(it.name == param.tsType and it.isHandle):
               conds.add("(" & argExpr & " instanceof " & param.tsType & " || (" & argExpr & " && typeof " & argExpr & ".handleId === 'number'))")
             else:
               conds.add("typeof " & argExpr & " === 'object'")
@@ -884,6 +1020,8 @@ proc generateJs*(meta: TsModuleMeta, relativeWasmPath: string = ""): string =
   lines.add("  Channel: NimTsChannel,")
   lines.add("  GpuBufferSlice,")
   lines.add("  createGpuBufferSlice,")
+  lines.add("  NimTsView,")
+  lines.add("  createNimTsView,")
   lines.add("  nimts_alloc_aligned,")
   lines.add("  nimts_free_aligned,")
   for name in procsByName.keys:
