@@ -17,11 +17,14 @@ export default defineConfig({
       { text: "Type Mapping", link: "/guide/type-marshaling" },
       { text: "API Reference", link: "/reference/nim-api" },
       { text: "Vite Plugin", link: "/guide/vite-plugin" },
+      { text: "Changelog", link: "/changelog" },
       {
         text: "v0.1.0",
         items: [
-          { text: "Changelog", link: "https://github.com/axiomantic/nimts/releases" },
-          { text: "NPM Package", link: "https://www.npmjs.com/package/nimts" },
+          { text: "v0.1.0 (Current Release)", link: "/" },
+          { text: "Changelog & Release Notes", link: "/changelog" },
+          { text: "GitHub Releases", link: "https://github.com/axiomantic/nimts/releases" },
+          { text: "NPM Package", link: "https://www.npmjs.com/package/@axiomantic/nimts" },
           { text: "Nimble Directory", link: "https://nimble.directory/" }
         ]
       }
@@ -60,6 +63,12 @@ export default defineConfig({
           { text: "Nim Macro & Bridge API", link: "/reference/nim-api" },
           { text: "TypeScript Runtime API", link: "/reference/typescript-runtime" },
           { text: "CLI Reference", link: "/reference/cli" }
+        ]
+      },
+      {
+        text: "Project",
+        items: [
+          { text: "Changelog & Releases", link: "/changelog" }
         ]
       }
     ],
