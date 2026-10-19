@@ -39,7 +39,7 @@ export default defineConfig({
         text: "Guides",
         items: [
           { text: "Type Marshaling", link: "/guide/type-marshaling" },
-          { text: "Stateful Handles & GC", link: "/guide/stateful-handles" },
+          { text: "Memory, Handles & GC", link: "/guide/stateful-handles" },
           { text: "Async Future ↔ Promise", link: "/guide/async-bridge" },
           { text: "Vite Integration", link: "/guide/vite-plugin" },
           { text: "AudioWorklet & Workers", link: "/guide/audioworklet-workers" },
