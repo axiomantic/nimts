@@ -1,6 +1,23 @@
+# Polyform standard ignore patterns
+nimcache/
+*.exe
+*.out
+*.dll
+*.so
+*.dylib
+nimblecache/
+.nimble/
+htmldocs/
+site/
+.DS_Store
+.idea/
+.vscode/
+*.swp
+justfile.local
+
+# TypeScript / WASM artifacts
 node_modules/
 dist/
-nimcache/
 .nimts-cache/
 tests/fixtures/nimcache/
 tests/fixtures/*.wasm
@@ -8,7 +25,6 @@ tests/fixtures/*.js
 tests/fixtures/*.mjs
 tests/fixtures/*.d.ts
 *.o
-.DS_Store
 
 # Compiled binaries
 /nimts
