@@ -1,56 +1,38 @@
 {
-  "name": "nimts",
-  "version": "0.1.0",
-  "description": "nimpy for TypeScript / WebAssembly with non-invasive exportts, sync/async loaders, and Future<->Promise bridge",
+  "name": "@axiomantic/nimts",
+  "version": "0.0.1",
+  "description": "Seamless TypeScript & WebAssembly bridge for Nim with Vite integration, sync/async loaders, and Future<->Promise bridge",
   "type": "module",
   "main": "./dist/index.js",
+  "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
+      "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
-      "types": "./dist/index.d.ts"
-    },
-    "./vite": {
-      "import": "./dist/vite-plugin-nimts.js",
-      "types": "./dist/vite-plugin-nimts.d.ts"
+      "default": "./dist/index.js"
     },
     "./runtime": {
+      "types": "./dist/runtime.d.ts",
       "import": "./dist/runtime.js",
-      "types": "./dist/runtime.d.ts"
+      "default": "./dist/runtime.js"
     }
   },
   "files": [
-    "dist",
-    "src",
-    "nimts.nimble"
+    "dist"
   ],
   "scripts": {
-    "build": "tsc",
+    "build": "bash scripts/compile_wasm.sh && tsc",
+    "compile:wasm": "bash scripts/compile_wasm.sh",
+    "compile:ts": "tsc",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "lint": "tsc --noEmit",
+    "fmt": "npx prettier --write 'ts/**/*.ts' 'tests/**/*.ts'"
   },
-  "keywords": [
-    "nim",
-    "typescript",
-    "wasm",
-    "webassembly",
-    "vite",
-    "bindings"
-  ],
-  "author": "Axiomantic",
-  "license": "MIT",
   "devDependencies": {
-    "@types/node": "^22.0.0",
-    "typescript": "^5.6.0",
-    "vite": "^5.4.0",
-    "vitest": "^2.1.0"
+    "@types/node": "^20.14.0",
+    "typescript": "^5.4.0",
+    "vitest": "^1.6.0"
   },
-  "peerDependencies": {
-    "vite": ">=5.0.0"
-  },
-  "peerDependenciesMeta": {
-    "vite": {
-      "optional": true
-    }
-  }
+  "license": "MIT"
 }

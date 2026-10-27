@@ -1,16 +1,13 @@
-# nimts.nim - Main entry point for nimts (nimpy for TypeScript / WebAssembly)
-# Licensed under MIT License.
+# nimts - Seamless TypeScript & WebAssembly bridge for Nim with Vite integration, sync/async loaders, and Future<->Promise bridge
 
-import std/json
-import nimts/types
-import nimts/memory
-import nimts/async_bridge
-import nimts/codegen
-import nimts/macros
+const projectVersion* = "0.0.1"
 
-export json
-export types
-export memory
-export async_bridge
-export codegen
-export macros
+const greetingMsg* = "hello from nimts"
+
+proc hello*(): string =
+  ## Returns standard project greeting string.
+  greetingMsg
+
+proc add*(a, b: int): int {.exportc: "add", cdecl.} =
+  ## Adds two integers (exported to WebAssembly).
+  a + b
