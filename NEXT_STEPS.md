@@ -1,6 +1,10 @@
 # Next Steps for nimts
 
-Welcome to your newly scaffolded project! This repository was generated with **Polyform** using the `nim_ts_wasm` architectural flavor.
+Welcome to your newly scaffolded project! This repository was generated with **Polyform** configured with composable facets:
+- Nim: `True`
+- Python: `False`
+- TypeScript: `True` (bridge: `wasm`)
+- C/C++: `False`
 
 Follow this checklist to complete project onboarding and configure CI/CD.
 
@@ -50,7 +54,12 @@ To publish the TypeScript / WASM package to npm:
 
 ---
 
-## 4. Architectural Flavor Details: `nim_ts_wasm`
+## 4. Architectural Toolchain Details
+### Nim Core Library
+- **Core Library Source**: `src/nimts.nim`
+- **Nimble Package Definition**: `nimts.nimble`
+- **Tests**: `tests/` (run via `just test` or `nimble test`)
+### TypeScript / WebAssembly Bridge
 - **Nim Source & WASM Export**: `src/nimts.nim`
 - **TypeScript Runtime & Bridge**: `ts/runtime.ts`, `ts/index.ts`
 - **Vitest Suite**: `tests/test_ts_bridge.ts` (run via `npm test` or `just test`)

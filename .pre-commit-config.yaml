@@ -33,11 +33,9 @@ repos:
         language: system
         files: \.(nim|nimble)$
         pass_filenames: false
-
       - id: ts-lint
         name: npm run lint
         entry: npm run lint
         language: system
         files: \.(ts|js|json)$
         pass_filenames: false
-
