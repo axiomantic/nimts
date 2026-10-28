@@ -10,13 +10,26 @@ setup:
 
 # 2. Test Suite Execution
 test:
+    @just test-nim
+    @just test-ts
+
+test-nim:
     nimble test
-    npm run test
+
+test-ts:
+    @just compile-wasm
+    npx vitest run
 
 # 3. Linter Execution
 lint:
+    @just lint-nim
+    @just lint-ts
+
+lint-nim:
     nph --check .
     nimble check
+
+lint-ts:
     npm run lint
 
 # 4. Formatter Execution
@@ -26,11 +39,16 @@ fmt:
 
 # 5. Build Artifacts
 build:
+    @just compile-wasm
     npm run build
+
+# Compile Nim to WebAssembly
+compile-wasm:
+    bash scripts/compile_wasm.sh
 
 # 8. Clean Build Artifacts
 clean:
-    rm -rf nimcache htmldocs site docs/dist docs/.astro tools/docgen
+    rm -rf nimcache htmldocs site docs/dist docs/.astro tools/docgen dist .venv
     find . -name '*.exe' -delete
 
 # 9. Secret Scanning

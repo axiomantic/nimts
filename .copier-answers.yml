@@ -1,4 +1,4 @@
-_commit: v0.1.9
+_commit: v0.2.0
 _src_path: gh:axiomantic/polyform
 author_email: maintainers@axiomantic.org
 author_name: Axiomantic
@@ -6,11 +6,15 @@ description: Seamless TypeScript & WebAssembly bridge for Nim with Vite integrat
     sync/async loaders, and Future<->Promise bridge
 docs_engine: none
 enable_momus_review: true
-flavor: nim_ts_wasm
 github_owner: axiomantic
+has_c_cpp: false
+has_nim: true
+has_python: false
+has_typescript: true
 license: MIT
 momus_base_url: https://openrouter.ai/api/v1
 momus_model: ~anthropic/claude-sonnet-latest
 package_name: nimts
 project_name: nimts
 repo_name: nimts
+ts_bridge_strategy: wasm
