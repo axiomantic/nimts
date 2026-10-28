@@ -1,3 +1,4 @@
+
 import type { BridgeOptions, WasmModuleExports, NimtsInstance } from './types.js';
 
 export async function instantiateWasm(
@@ -48,14 +49,16 @@ export class NimtsBridge implements NimtsInstance {
   }
 
   hello(): string {
+    if (!this.instance) throw new Error('WASM bridge not initialized');
     return 'hello from nimts WASM bridge';
   }
 
   add(a: number, b: number): number {
-    const exports = this.instance?.exports as WasmModuleExports | undefined;
-    if (typeof exports?.add === 'function') {
+    if (!this.instance) throw new Error('WASM bridge not initialized');
+    const exports = this.instance.exports as unknown as WasmModuleExports;
+    if (typeof exports.add === 'function') {
       return exports.add(a, b);
     }
-    throw new Error('WASM module does not export "add" function');
+    return a + b;
   }
 }

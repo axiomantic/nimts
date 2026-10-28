@@ -17,8 +17,12 @@ justfile.local
 
 
 
-# TypeScript / WASM artifacts
+# TypeScript artifacts
 node_modules/
 dist/
+
 *.wasm
+
+
+
 

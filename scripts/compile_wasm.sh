@@ -21,12 +21,13 @@ if command -v emcc >/dev/null 2>&1; then
   COMPILED=1
 elif command -v clang >/dev/null 2>&1 && clang --print-targets 2>&1 | grep -q wasm; then
   echo "Compiling WASM using clang --target=wasm32..."
-  nim c -c -d:release --cpu:wasm32 --os:standalone -d:wasm --mm:orc --nomain:on \
+  if nim c -c -d:release --cpu:wasm32 --os:standalone -d:wasm --mm:orc --nomain:on \
     --nimcache:"${ROOT_DIR}/nimcache_wasm" \
-    "${ROOT_DIR}/src/nimts.nim"
-  clang --target=wasm32 -nostdlib -Wl,--no-entry -Wl,--export-all \
-    -o "${ROOT_DIR}/dist/nimts.wasm" \
-    "${ROOT_DIR}"/nimcache_wasm/*.c 2>/dev/null && COMPILED=1 || true
+    "${ROOT_DIR}/src/nimts.nim" 2>/dev/null; then
+    clang --target=wasm32 -nostdlib -Wl,--no-entry -Wl,--export-all \
+      -o "${ROOT_DIR}/dist/nimts.wasm" \
+      "${ROOT_DIR}"/nimcache_wasm/*.c 2>/dev/null && COMPILED=1 || true
+  fi
 fi
 
 # Fallback generator for environments lacking native WebAssembly C compilers

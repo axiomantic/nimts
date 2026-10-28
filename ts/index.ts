@@ -5,7 +5,6 @@
 
 export * from './types.js';
 export * from './runtime.js';
-
 import { NimtsBridge } from './runtime.js';
 
 export async function createNimts(): Promise<NimtsBridge> {
