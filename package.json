@@ -72,14 +72,14 @@
   "author": "Axiomantic",
   "license": "MIT",
   "devDependencies": {
-    "@types/node": "^22.0.0",
-    "markdown-it-mathjax3": "^4.3.2",
-    "mermaid": "^11.17.2",
-    "typescript": "^5.6.0",
-    "vite": "^5.4.0",
+    "@types/node": "^26.6.5",
+    "markdown-it-mathjax3": "^5.2.0",
+    "mermaid": "^12.2.0",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.5",
     "vitepress": "^1.6.4",
     "vitepress-plugin-mermaid": "^2.0.17",
-    "vitest": "^2.1.0"
+    "vitest": "^5.0.5"
   },
   "peerDependencies": {
     "vite": ">=5.0.0"
@@ -87,6 +87,14 @@
   "peerDependenciesMeta": {
     "vite": {
       "optional": true
+    }
+  },
+  "overrides": {
+    "vitepress": {
+      "markdown-it-mathjax3": "$markdown-it-mathjax3"
+    },
+    "vitepress-plugin-mermaid": {
+      "mermaid": "$mermaid"
     }
   }
 }
