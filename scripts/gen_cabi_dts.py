@@ -12,11 +12,9 @@ from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
+import headerkit
 from headerkit._config import HeaderkitConfig, load_config
-from headerkit.backends import get_backend
-from headerkit.transforms.nim_cleanup import NimCleanupTransform
 from headerkit.transforms.nim_jsondoc import NimJsonDocEnricher, _parse_nim_source_file
-from headerkit.writers import get_writer
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
@@ -195,14 +193,9 @@ def generate_cabi_dts(
             raise ValueError("One of header_code, header_path, or nim_source must be provided.")
 
     header_name = resolved_header_path.name if resolved_header_path is not None else "cabi.h"
-    backend = get_backend(eff_backend)
+    transforms_list: list[Any] = []
     if not hk_cfg.transforms or "nim_cleanup" in hk_cfg.transforms:
-        cleanup = NimCleanupTransform()
-        inc, args, b_opts = cleanup.prepare_parse(header_code, header_name, [], [])
-        unit = backend.parse(header_code, header_name, include_dirs=inc, extra_args=args, **b_opts)
-        unit = cleanup.transform(unit)
-    else:
-        unit = backend.parse(header_code, header_name)
+        transforms_list.append("nim_cleanup")
 
     nim_sources_to_enrich: list[Path] = []
     if include_core_sources:
@@ -220,8 +213,7 @@ def generate_cabi_dts(
                 nim_sources_to_enrich.append(p)
 
     for src in nim_sources_to_enrich:
-        enricher = NimJsonDocEnricher(nim_source_path=src, project_root=root)
-        unit = enricher.transform(unit)
+        transforms_list.append(NimJsonDocEnricher(nim_source_path=src, project_root=root))
 
     companion_entries: list[Mapping[str, Any]] = []
     if resolved_nim_source is not None:
@@ -229,14 +221,20 @@ def generate_cabi_dts(
     if entries is not None:
         companion_entries.extend(entries)
     if companion_entries:
-        unit = NimJsonDocEnricher(entries=companion_entries, project_root=root).transform(unit)
+        transforms_list.append(NimJsonDocEnricher(entries=companion_entries, project_root=root))
 
-    writer = get_writer(
+    return headerkit.generate(
+        header_name,
         "ts_wasm",
-        interface_name=eff_interface_name,
-        include_memory=eff_include_memory,
+        code=header_code,
+        backend_name=eff_backend,
+        transforms=transforms_list,
+        writer_options={
+            "interface_name": eff_interface_name,
+            "include_memory": eff_include_memory,
+        },
+        no_cache=True,
     )
-    return writer.write(unit)
 
 
 def generate_default_targets(project_root: Path | None = None) -> tuple[Path, Path]:
