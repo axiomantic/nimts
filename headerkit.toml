@@ -1,6 +1,7 @@
 backend = "tree-sitter"
+transforms = ["nim_cleanup"]
 writers = ["ts_wasm"]
 
-[writer_options.ts_wasm]
+[writer.ts_wasm]
 interface_name = "NimTsCabiExports"
 include_memory = true

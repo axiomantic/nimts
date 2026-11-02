@@ -12,12 +12,22 @@ from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
+from headerkit._config import HeaderkitConfig, load_config
 from headerkit.backends import get_backend
 from headerkit.transforms.nim_cleanup import NimCleanupTransform
 from headerkit.transforms.nim_jsondoc import NimJsonDocEnricher, _parse_nim_source_file
 from headerkit.writers import get_writer
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
+
+
+def load_nimts_headerkit_config(project_root: Path | str | None = None) -> HeaderkitConfig:
+    """Load ``headerkit.toml`` from *project_root* when present."""
+    root = Path(project_root).resolve() if project_root is not None else REPO_ROOT
+    cfg_path = root / "headerkit.toml"
+    if cfg_path.is_file():
+        return load_config(cfg_path)
+    return HeaderkitConfig()
 CORE_NIMTS_SOURCES: tuple[Path, ...] = (
     REPO_ROOT / "src" / "nimts" / "memory.nim",
     REPO_ROOT / "src" / "nimts" / "async_bridge.nim",
@@ -140,14 +150,29 @@ def generate_cabi_dts(
     nim_source: Path | str | None = None,
     extra_nim_sources: Sequence[Path | str] | None = None,
     entries: Sequence[Mapping[str, Any]] | None = None,
-    interface_name: str = "NimTsCabiExports",
-    include_memory: bool = True,
+    interface_name: str | None = None,
+    include_memory: bool | None = None,
     project_root: Path | str | None = None,
     include_core_sources: bool = True,
-    backend_name: str = "tree-sitter",
+    backend_name: str | None = None,
 ) -> str:
     """Run the HeaderKit ``NimCleanupTransform`` + ``NimJsonDocEnricher`` + ``TsWasmWriter`` pipeline."""
     root = Path(project_root).resolve() if project_root is not None else REPO_ROOT
+    hk_cfg = load_nimts_headerkit_config(root)
+    ts_wasm_opts = hk_cfg.writer_options.get("ts_wasm")
+    cfg_opts = ts_wasm_opts.options if ts_wasm_opts is not None else {}
+
+    eff_backend = backend_name or hk_cfg.backend or "tree-sitter"
+    eff_interface_name = (
+        interface_name
+        if interface_name is not None
+        else str(cfg_opts.get("interface_name", "NimTsCabiExports"))
+    )
+    eff_include_memory = (
+        include_memory
+        if include_memory is not None
+        else bool(cfg_opts.get("include_memory", True))
+    )
 
     resolved_header_path: Path | None = None
     if header_path is not None:
@@ -170,9 +195,10 @@ def generate_cabi_dts(
             raise ValueError("One of header_code, header_path, or nim_source must be provided.")
 
     header_name = resolved_header_path.name if resolved_header_path is not None else "cabi.h"
-    backend = get_backend(backend_name)
+    backend = get_backend(eff_backend)
     unit = backend.parse(header_code, header_name)
-    unit = NimCleanupTransform().transform(unit)
+    if not hk_cfg.transforms or "nim_cleanup" in hk_cfg.transforms:
+        unit = NimCleanupTransform().transform(unit)
 
     nim_sources_to_enrich: list[Path] = []
     if include_core_sources:
@@ -203,8 +229,8 @@ def generate_cabi_dts(
 
     writer = get_writer(
         "ts_wasm",
-        interface_name=interface_name,
-        include_memory=include_memory,
+        interface_name=eff_interface_name,
+        include_memory=eff_include_memory,
     )
     return writer.write(unit)
 

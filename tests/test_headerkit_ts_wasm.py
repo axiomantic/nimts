@@ -17,6 +17,7 @@ from gen_cabi_dts import (  # noqa: E402
     extract_exportts_companion_entries,
     generate_cabi_dts,
     generate_default_targets,
+    load_nimts_headerkit_config,
 )
 
 EXPECTED_NIMTS_CABI_EXPORTS = """\
@@ -357,3 +358,16 @@ N_LIB_PRIVATE N_CDECL(NI32, nimts_only_public)(NI32 value_p0);
 
     with pytest.raises(FileNotFoundError, match="Nim source file not found"):
         compile_nim_cabi_header(missing_nim)
+
+
+def test_headerkit_toml_config_loading() -> None:
+    cfg = load_nimts_headerkit_config(REPO_ROOT)
+    assert cfg.backend == "tree-sitter"
+    assert cfg.transforms == ["nim_cleanup"]
+    assert cfg.writers == ["ts_wasm"]
+    ts_wasm_cfg = cfg.writer_options.get("ts_wasm")
+    assert ts_wasm_cfg is not None
+    assert ts_wasm_cfg.options == {
+        "interface_name": "NimTsCabiExports",
+        "include_memory": True,
+    }

@@ -22,16 +22,20 @@ test-ts:
     npx vitest run
 
 test-py:
-    @if [ -x /Users/eek/Development/headerkit/.venv/bin/pytest ]; then \
-        /Users/eek/Development/headerkit/.venv/bin/pytest -q tests/test_headerkit_ts_wasm.py; \
+    @if [ -n "${VIRTUAL_ENV:-}" ] && [ -x "${VIRTUAL_ENV}/bin/pytest" ]; then \
+        "${VIRTUAL_ENV}/bin/pytest" -q tests/test_headerkit_ts_wasm.py; \
+    elif [ -x .venv/bin/pytest ]; then \
+        .venv/bin/pytest -q tests/test_headerkit_ts_wasm.py; \
     else \
         pytest -q tests/test_headerkit_ts_wasm.py; \
     fi
 
 # Generate C-ABI WebAssembly .d.ts declarations via HeaderKit
 gen-cabi-dts:
-    @if [ -x /Users/eek/Development/headerkit/.venv/bin/python3 ]; then \
-        /Users/eek/Development/headerkit/.venv/bin/python3 scripts/gen_cabi_dts.py --default-targets; \
+    @if [ -n "${VIRTUAL_ENV:-}" ] && [ -x "${VIRTUAL_ENV}/bin/python3" ]; then \
+        "${VIRTUAL_ENV}/bin/python3" scripts/gen_cabi_dts.py --default-targets; \
+    elif [ -x .venv/bin/python3 ]; then \
+        .venv/bin/python3 scripts/gen_cabi_dts.py --default-targets; \
     else \
         python3 scripts/gen_cabi_dts.py --default-targets; \
     fi
