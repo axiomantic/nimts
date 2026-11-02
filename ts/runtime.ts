@@ -5,17 +5,10 @@
  * nimts runtime - Core WebAssembly runtime support for TypeScript
  */
 
-export interface NimTsExports {
-  memory: WebAssembly.Memory;
-  nimts_alloc(size: number): number;
-  nimts_free(ptr: number): void;
-  nimts_alloc_aligned?(size: number, alignment: number): number;
-  nimts_free_aligned?(ptr: number): void;
-  nimts_get_last_result_ptr(): number;
-  nimts_get_last_result_len(): number;
-  nimts_destroy_handle?(handleId: number): void;
-  nimts_active_handle_count?(): number;
-  nimts_resume_future?(futureId: number, dataPtr: number, dataLen: number, isError: number): void;
+import type { NimTsCabiExports } from './cabi_exports.js';
+export type { NimTsCabiExports };
+
+export interface NimTsExports extends NimTsCabiExports {
   [key: string]: any;
 }
 

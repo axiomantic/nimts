@@ -14,9 +14,11 @@ type
     name*: string
 
 proc addNumbers*(a: int32, b: int32): int32 {.exportts.} =
+  ## Add two 32-bit signed integers and return their sum.
   a + b
 
 proc greet*(name: string): string {.exportts.} =
+  ## Format a greeting string for the given UTF-8 name slice.
   "Hello, " & name & "!"
 
 proc checksumBytes*(data: openArray[byte]): seq[byte] {.exportts.} =

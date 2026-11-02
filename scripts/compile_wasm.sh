@@ -78,6 +78,7 @@ if [[ "${BACKEND}" == "emscripten" ]]; then
   nim c -c -d:emscripten -d:release --opt:speed --cpu:wasm32 \
     -p:"${ROOT_DIR}/src" \
     --nimcache:"${NIMCACHE_DIR}" \
+    --header:cabi.h \
     "${INPUT_NIM}"
 
   echo "==> [Backend: Emscripten] 2. Compiling and linking with emcc..."
@@ -151,6 +152,7 @@ nim c -c -d:emscripten -d:useMalloc -d:release --opt:speed --cpu:wasm32 \
   --noMain:on \
   -p:"${ROOT_DIR}/src" \
   --nimcache:"${NIMCACHE_DIR}" \
+  --header:cabi.h \
   "${INPUT_NIM}"
 
 echo "==> [Backend: Standalone] 2. Compiling builtins_wasm.c..."
@@ -172,5 +174,25 @@ echo "==> [Backend: Standalone] 4. Linking standalone ${OUTPUT_WASM} via wasm-ld
   -L"${WASI_SYSROOT}/lib/wasm32-wasip1" -lc -lwasi-emulated-mman -lwasi-emulated-signal \
   -o "${OUTPUT_WASM}" \
   "${NIMCACHE_DIR}"/*.o
+
+if [[ -f "${NIMCACHE_DIR}/cabi.h" && -f "${ROOT_DIR}/scripts/gen_cabi_dts.py" ]]; then
+  HK_PYTHON="${HEADERKIT_PYTHON:-}"
+  if [[ -z "${HK_PYTHON}" ]]; then
+    if [[ -x "${ROOT_DIR}/.venv/bin/python3" ]]; then
+      HK_PYTHON="${ROOT_DIR}/.venv/bin/python3"
+    elif [[ -x "/Users/eek/Development/headerkit/.venv/bin/python3" ]]; then
+      HK_PYTHON="/Users/eek/Development/headerkit/.venv/bin/python3"
+    else
+      HK_PYTHON="$(command -v python3 || echo "")"
+    fi
+  fi
+  if [[ -n "${HK_PYTHON}" ]] && "${HK_PYTHON}" -c "import headerkit" >/dev/null 2>&1; then
+    OUTPUT_CABI_DTS="${OUTPUT_WASM%.wasm}.cabi.d.ts"
+    "${HK_PYTHON}" "${ROOT_DIR}/scripts/gen_cabi_dts.py" \
+      --header "${NIMCACHE_DIR}/cabi.h" \
+      --nim-source "${INPUT_NIM}" \
+      --output "${OUTPUT_CABI_DTS}"
+  fi
+fi
 
 echo "==> Standalone build successful: ${OUTPUT_WASM} ($(du -h "${OUTPUT_WASM}" | cut -f1))"

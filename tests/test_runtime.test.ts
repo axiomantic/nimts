@@ -176,6 +176,42 @@ describe('NimTsRuntime Unit Tests', () => {
       expect(addNumbers(40, 2)).toBe(42);
       expect(greet('AudioWorklet')).toBe('Hello, AudioWorklet!');
     });
+
+    it('conforms to HeaderKit-generated NimTsCabiExports scalar WebAssembly.Exports contract', async () => {
+      const runtime = new NimTsRuntime();
+      const exports = await runtime.init(wasmBytes);
+
+      expect(exports.memory).toBeInstanceOf(WebAssembly.Memory);
+      expect(typeof exports.nimts_init).toBe('function');
+      expect(typeof exports.nimts_alloc).toBe('function');
+      expect(typeof exports.nimts_free).toBe('function');
+      expect(typeof exports.nimts_alloc_aligned).toBe('function');
+      expect(typeof exports.nimts_free_aligned).toBe('function');
+      expect(typeof exports.nimts_get_last_result_ptr).toBe('function');
+      expect(typeof exports.nimts_get_last_result_len).toBe('function');
+      expect(typeof exports.nimts_has_error).toBe('function');
+      expect(typeof exports.nimts_get_last_error).toBe('function');
+      expect(typeof exports.nimts_clear_error).toBe('function');
+      expect(typeof exports.nimts_destroy_handle).toBe('function');
+      expect(typeof exports.nimts_iter_next).toBe('function');
+      expect(typeof exports.nimts_iter_finished).toBe('function');
+      expect(typeof exports.nimts_iter_dispose).toBe('function');
+      expect(typeof exports.nimts_active_handle_count).toBe('function');
+      expect(typeof exports.nimts_resume_future).toBe('function');
+      expect(typeof exports.nimts_chan_create).toBe('function');
+      expect(typeof exports.nimts_chan_send).toBe('function');
+      expect(typeof exports.nimts_chan_try_recv).toBe('function');
+      expect(typeof exports.nimts_chan_is_closed).toBe('function');
+      expect(typeof exports.nimts_chan_close).toBe('function');
+      expect(typeof exports.nimts_chan_destroy).toBe('function');
+      expect(typeof exports.nimts_chan_get_raw_ptrs).toBe('function');
+
+      // 32-bit/pointer exports return JS number; 64-bit packed exports return JS bigint
+      expect(typeof exports.nimts_has_error()).toBe('number');
+      expect(typeof exports.nimts_get_last_error()).toBe('bigint');
+      expect(typeof exports.nimts_chan_try_recv(0)).toBe('bigint');
+      expect(exports.nimts_chan_try_recv(0)).toBe(0n);
+    });
   });
 
   describe('WebGPU Aligned Allocator & GpuBufferSlice', () => {

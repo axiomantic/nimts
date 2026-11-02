@@ -30,17 +30,21 @@ proc ensureNimTsInit*() {.inline.} =
     NimMain()
 
 proc nimts_init*() {.exportc: "nimts_init", cdecl.} =
+  ## Initialize the NimTS WebAssembly runtime idempotently.
   ensureNimTsInit()
 
 proc nimts_alloc*(size: int32): pointer {.exportc: "nimts_alloc", cdecl.} =
+  ## Allocate zero-initialized linear memory of the given byte size.
   if size <= 0: return nil
   result = alloc0(size)
 
 proc nimts_free*(p: pointer) {.exportc: "nimts_free", cdecl.} =
+  ## Free a linear memory block previously allocated by nimts_alloc.
   if p != nil:
     dealloc(p)
 
 proc nimts_alloc_aligned*(size: int32, alignment: int32): pointer {.exportc: "nimts_alloc_aligned", cdecl.} =
+  ## Allocate zero-initialized linear memory aligned to a power-of-two byte boundary.
   if size <= 0 or alignment <= 0: return nil
   if (alignment and (alignment - 1)) != 0: return nil # Power of two required
 
@@ -60,6 +64,7 @@ proc nimts_alloc_aligned*(size: int32, alignment: int32): pointer {.exportc: "ni
   result = cast[pointer](alignedInt)
 
 proc nimts_free_aligned*(p: pointer) {.exportc: "nimts_free_aligned", cdecl.} =
+  ## Free an aligned linear memory block previously allocated by nimts_alloc_aligned.
   if p == nil: return
   let prefixPtr = cast[ptr pointer](cast[uint](p) - cast[uint](sizeof(pointer)))
   let raw = prefixPtr[]
@@ -134,9 +139,11 @@ proc packNimTsViewResult*[T](view: NimTsView[T]): uint64 {.inline.} =
   packBuffer(view.data, view.len)
 
 proc nimts_get_last_result_ptr*(): pointer {.exportc: "nimts_get_last_result_ptr", cdecl.} =
+  ## Return the pointer component of the most recent packed result buffer.
   gLastResultPtr
 
 proc nimts_get_last_result_len*(): int32 {.exportc: "nimts_get_last_result_len", cdecl.} =
+  ## Return the byte/element length of the most recent packed result buffer.
   gLastResultLen
 
 proc allocStringResult*(s: string): uint64 =
@@ -173,12 +180,15 @@ proc setLastError*(msg: string) =
   gLastErrorMsg = msg
 
 proc nimts_has_error*(): int32 {.exportc: "nimts_has_error", cdecl.} =
+  ## Return 1 if a Nim exception or defect occurred during the last C-ABI call, or 0 otherwise.
   gHasError
 
 proc nimts_get_last_error*(): uint64 {.exportc: "nimts_get_last_error", cdecl.} =
+  ## Return the packed (len << 32) | ptr UTF-8 buffer for the last recorded error message.
   allocStringResult(gLastErrorMsg)
 
 proc nimts_clear_error*() {.exportc: "nimts_clear_error", cdecl.} =
+  ## Clear the recorded C-ABI error flag and message buffer.
   gHasError = 0
   gLastErrorMsg = ""
 
@@ -248,6 +258,7 @@ proc releaseHandle*(h: HandleId) =
       entry.destructor(entry.rawPtr)
 
 proc nimts_destroy_handle*(h: HandleId) {.exportc: "nimts_destroy_handle", cdecl.} =
+  ## Release a registered ref-object handle and invoke its destructor.
   releaseHandle(h)
 
 proc iterStepHelper[T](selfBase: ClosureIterSlotBase): uint64 {.nimcall.} =
@@ -301,6 +312,7 @@ proc newNimTsIterator*[T](it: iterator(): T {.closure.}): NimTsIterator[T] =
   return NimTsIterator[T](hid)
 
 proc nimts_iter_next*(h: HandleId): uint64 {.exportc: "nimts_iter_next", cdecl.} =
+  ## Advance closure iterator handle h by one step and return a packed (len << 32) | ptr result.
   let slot = getIterHandle(h)
   if slot.isNil or slot.finished or slot.stepProc == nil:
     return 0'u64
@@ -310,16 +322,19 @@ proc nimts_iter_next*(h: HandleId): uint64 {.exportc: "nimts_iter_next", cdecl.}
   return res
 
 proc nimts_iter_finished*(h: HandleId): int32 {.exportc: "nimts_iter_finished", cdecl.} =
+  ## Return 1 if closure iterator handle h has completed or been disposed, or 0 otherwise.
   let slot = getIterHandle(h)
   if slot.isNil or slot.finished:
     return 1'i32
   return 0'i32
 
 proc nimts_iter_dispose*(h: HandleId) {.exportc: "nimts_iter_dispose", cdecl.} =
+  ## Dispose closure iterator handle h and reclaim its GC reference.
   releaseHandle(h)
 
 proc activeHandleCount*(): int =
   gHandleTable.len
 
 proc nimts_active_handle_count*(): int32 {.exportc: "nimts_active_handle_count", cdecl.} =
+  ## Return the count of currently active object and iterator handles in the registry.
   gHandleTable.len.int32

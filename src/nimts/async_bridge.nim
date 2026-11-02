@@ -83,6 +83,7 @@ proc nextFutureId*(): FutureId =
   inc gFutureCounter
 
 proc nimts_resume_future*(futureId: int32, dataPtr: pointer, dataLen: int32, isError: int32) {.exportc: "nimts_resume_future", cdecl.} =
+  ## Resume a pending Nim Future from JavaScript with a result buffer or error flag.
   let fid = futureId.FutureId
   if gPendingFutures.hasKey(fid):
     let cb = gPendingFutures[fid]

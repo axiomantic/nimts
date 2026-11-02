@@ -31,6 +31,14 @@ tests/fixtures/*.d.ts
 tests/test_*
 !tests/test_*.nim
 !tests/test_*.ts
+!tests/test_*.py
+
+# Python caches
+__pycache__/
+.pytest_cache/
+.testmondata
+.venv/
+uv.lock
 
 # VitePress documentation
 docs/.vitepress/dist/

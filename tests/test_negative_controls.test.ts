@@ -154,7 +154,8 @@ describe('Adversarial Negative Control Suites (NEG-01 to NEG-06)', () => {
   describe('NEG-06: Automated TypeScript Type Validity (tsc --noEmit)', () => {
     it('validates that all generated .d.ts files compile cleanly with zero TypeScript errors', () => {
       const fixturesDts = path.resolve(__dirname, 'fixtures/test_module.d.ts');
-      const output = execSync(`npx tsc --noEmit --ignoreConfig ${fixturesDts}`, {
+      const fixturesCabiDts = path.resolve(__dirname, 'fixtures/test_module.cabi.d.ts');
+      const output = execSync(`npx tsc --noEmit --ignoreConfig ${fixturesDts} ${fixturesCabiDts}`, {
         encoding: 'utf-8',
         cwd: path.resolve(__dirname, '..')
       });
