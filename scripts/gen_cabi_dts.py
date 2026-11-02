@@ -196,9 +196,13 @@ def generate_cabi_dts(
 
     header_name = resolved_header_path.name if resolved_header_path is not None else "cabi.h"
     backend = get_backend(eff_backend)
-    unit = backend.parse(header_code, header_name)
     if not hk_cfg.transforms or "nim_cleanup" in hk_cfg.transforms:
-        unit = NimCleanupTransform().transform(unit)
+        cleanup = NimCleanupTransform()
+        inc, args, b_opts = cleanup.prepare_parse(header_code, header_name, [], [])
+        unit = backend.parse(header_code, header_name, include_dirs=inc, extra_args=args, **b_opts)
+        unit = cleanup.transform(unit)
+    else:
+        unit = backend.parse(header_code, header_name)
 
     nim_sources_to_enrich: list[Path] = []
     if include_core_sources:
