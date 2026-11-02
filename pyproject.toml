@@ -11,9 +11,6 @@ dependencies = [
 [tool.uv]
 package = false
 
-[tool.uv.sources]
-headerkit = { path = "/Users/eek/Development/headerkit", editable = true }
-
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]

@@ -24,6 +24,7 @@ tests/fixtures/*.wasm
 tests/fixtures/*.js
 tests/fixtures/*.mjs
 tests/fixtures/*.d.ts
+!tests/fixtures/test_module.cabi.d.ts
 *.o
 
 # Compiled binaries
