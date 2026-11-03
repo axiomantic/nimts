@@ -10,6 +10,15 @@ For release artifacts, pre-packaged tarballs, and git release tags, visit [GitHu
 
 ---
 
+## [0.3.0] - 2026-11-03
+
+### Added
+- **HeaderKit v2 `ts_wasm` C-ABI `.d.ts` Generation Pipeline**: Integrated HeaderKit (`headerkit[treesitter]>=0.50.0`) via `pyproject.toml`, `headerkit.toml` (`transforms = ["nim_cleanup"]`, loaded via `headerkit._config.load_config`), `scripts/gen_cabi_dts.py`, `scripts/compile_wasm.sh` (across both `standalone` and `emscripten` backends), `justfile`, and `package.json` to generate ambient `WebAssembly.Exports` TypeScript declarations (`ts/cabi_exports.ts` and `<module>.cabi.d.ts`) directly from Nim `--header:cabi.h` outputs using `headerkit.generate(..., "ts_wasm", transforms=["nim_cleanup", NimJsonDocEnricher(...)])`.
+- **C-ABI Export Docstrings & Runtime Typing**: Added `##` docstrings across all 28 `{.exportc.}` C-ABI functions in `src/nimts/memory.nim`, `src/nimts/async_bridge.nim`, and `src/nimts/channels.nim`, and wired `NimTsCabiExports` into `ts/runtime.ts` (`NimTsExports extends NimTsCabiExports`) and `ts/index.ts`.
+- **C-ABI `.d.ts` Verification Suites**: Added `tests/test_headerkit_ts_wasm.py` and extended `tests/test_runtime.test.ts` and `tests/test_negative_controls.test.ts` (`NEG-06`) to verify exact structural `.d.ts` output, `number` vs `bigint` scalar ABI mapping, JSDoc and `@deprecated` emission, parameter name restoration, and `tsc --noEmit` validation.
+
+---
+
 ## [0.2.1] - 2026-10-19
 
 ### Added

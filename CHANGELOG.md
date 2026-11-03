@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+---
+
+## [0.3.0] - 2026-11-03
+
 ### Added
 - **HeaderKit v2 `ts_wasm` C-ABI `.d.ts` Generation Pipeline**: Integrated HeaderKit (`headerkit[treesitter]>=0.50.0`) via `pyproject.toml`, `headerkit.toml` (`transforms = ["nim_cleanup"]`, loaded via `headerkit._config.load_config`), `scripts/gen_cabi_dts.py`, `scripts/compile_wasm.sh` (across both `standalone` and `emscripten` backends), `justfile`, and `package.json` to generate ambient `WebAssembly.Exports` TypeScript declarations (`ts/cabi_exports.ts` and `<module>.cabi.d.ts`) directly from Nim `--header:cabi.h` outputs using `headerkit.generate(..., "ts_wasm", transforms=["nim_cleanup", NimJsonDocEnricher(...)])`.
 - **C-ABI Export Docstrings & Runtime Typing**: Added `##` docstrings across all 28 `{.exportc.}` C-ABI functions in `src/nimts/memory.nim`, `src/nimts/async_bridge.nim`, and `src/nimts/channels.nim`, and wired `NimTsCabiExports` into `ts/runtime.ts` (`NimTsExports extends NimTsCabiExports`) and `ts/index.ts`.
