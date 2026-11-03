@@ -24,6 +24,7 @@ tests/fixtures/*.wasm
 tests/fixtures/*.js
 tests/fixtures/*.mjs
 tests/fixtures/*.d.ts
+!tests/fixtures/test_module.cabi.d.ts
 *.o
 
 # Compiled binaries
@@ -31,6 +32,14 @@ tests/fixtures/*.d.ts
 tests/test_*
 !tests/test_*.nim
 !tests/test_*.ts
+!tests/test_*.py
+
+# Python caches
+__pycache__/
+.pytest_cache/
+.testmondata
+.venv/
+uv.lock
 
 # VitePress documentation
 docs/.vitepress/dist/
@@ -39,7 +48,15 @@ docs/.vitepress/cache/
 # Vite public output
 public/
 
-# Vine workspaces
+# Vine / Garden workspaces & ceremony files
 .vine/
 .vine.json
 .envrc
+audit_report.md
+design.md
+docs/addenda/audit_stage1_failure_modes.md
+docs/design/stage1_architecture_thesis.md
+garden-prompts.md
+garden-swarm.json
+implementation_plan.md
+understanding.md

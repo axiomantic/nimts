@@ -53,6 +53,28 @@ mkdir -p "$(dirname "${OUTPUT_WASM}")"
 rm -rf "${NIMCACHE_DIR}"
 mkdir -p "${NIMCACHE_DIR}"
 
+generate_cabi_dts() {
+  if [[ -f "${NIMCACHE_DIR}/cabi.h" && -f "${ROOT_DIR}/scripts/gen_cabi_dts.py" ]]; then
+    local hk_python="${HEADERKIT_PYTHON:-${PYTHON_BIN:-}}"
+    if [[ -z "${hk_python}" ]]; then
+      if [[ -n "${VIRTUAL_ENV:-}" && -x "${VIRTUAL_ENV}/bin/python3" ]]; then
+        hk_python="${VIRTUAL_ENV}/bin/python3"
+      elif [[ -x "${ROOT_DIR}/.venv/bin/python3" ]]; then
+        hk_python="${ROOT_DIR}/.venv/bin/python3"
+      else
+        hk_python="$(command -v python3 || echo "")"
+      fi
+    fi
+    if [[ -n "${hk_python}" ]] && "${hk_python}" -c "import headerkit" >/dev/null 2>&1; then
+      local output_cabi_dts="${OUTPUT_WASM%.wasm}.cabi.d.ts"
+      "${hk_python}" "${ROOT_DIR}/scripts/gen_cabi_dts.py" \
+        --header "${NIMCACHE_DIR}/cabi.h" \
+        --nim-source "${INPUT_NIM}" \
+        --output "${output_cabi_dts}"
+    fi
+  fi
+}
+
 if [[ "${BACKEND}" == "emscripten" ]]; then
   if [[ -z "${EMCC_BIN:-}" ]]; then
     if [[ -x "/opt/homebrew/bin/emcc" ]]; then
@@ -78,6 +100,7 @@ if [[ "${BACKEND}" == "emscripten" ]]; then
   nim c -c -d:emscripten -d:release --opt:speed --cpu:wasm32 \
     -p:"${ROOT_DIR}/src" \
     --nimcache:"${NIMCACHE_DIR}" \
+    --header:cabi.h \
     "${INPUT_NIM}"
 
   echo "==> [Backend: Emscripten] 2. Compiling and linking with emcc..."
@@ -96,6 +119,8 @@ if [[ "${BACKEND}" == "emscripten" ]]; then
   if [[ -f "${EMCC_WASM}" && "${EMCC_WASM}" != "${OUTPUT_WASM}" ]]; then
     cp -f "${EMCC_WASM}" "${OUTPUT_WASM}"
   fi
+
+  generate_cabi_dts
 
   echo "==> Emscripten build successful:"
   echo "    WASM binary: ${OUTPUT_WASM} ($(du -h "${OUTPUT_WASM}" | cut -f1))"
@@ -151,6 +176,7 @@ nim c -c -d:emscripten -d:useMalloc -d:release --opt:speed --cpu:wasm32 \
   --noMain:on \
   -p:"${ROOT_DIR}/src" \
   --nimcache:"${NIMCACHE_DIR}" \
+  --header:cabi.h \
   "${INPUT_NIM}"
 
 echo "==> [Backend: Standalone] 2. Compiling builtins_wasm.c..."
@@ -172,5 +198,7 @@ echo "==> [Backend: Standalone] 4. Linking standalone ${OUTPUT_WASM} via wasm-ld
   -L"${WASI_SYSROOT}/lib/wasm32-wasip1" -lc -lwasi-emulated-mman -lwasi-emulated-signal \
   -o "${OUTPUT_WASM}" \
   "${NIMCACHE_DIR}"/*.o
+
+generate_cabi_dts
 
 echo "==> Standalone build successful: ${OUTPUT_WASM} ($(du -h "${OUTPUT_WASM}" | cut -f1))"

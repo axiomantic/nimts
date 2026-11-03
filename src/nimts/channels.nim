@@ -204,31 +204,37 @@ proc registerChannel*[T](chan: NimTsChannel[T]): int32 =
   return id
 
 proc nimts_chan_create*(capacity: int32 = DefaultChannelCapacity.int32): int32 {.exportc: "nimts_chan_create", cdecl.} =
+  ## Create a new SPSC ring-buffer channel and return its channel handle ID.
   let cap = if capacity > 0: capacity.int else: DefaultChannelCapacity
   let chan = newNimTsChannel[seq[byte]](cap)
   return registerChannel(chan)
 
 proc nimts_chan_send*(chanId: int32, dataPtr: pointer, dataLen: int32): int32 {.exportc: "nimts_chan_send", cdecl.} =
+  ## Non-blocking enqueue into channel chanId; returns 1 on success, 0 if full, or -1 if invalid/closed.
   if not gChannelSlots.hasKey(chanId): return -1
   let slot = gChannelSlots[chanId]
   return slot.trySendProc(slot.chanPtr, dataPtr, dataLen)
 
 proc nimts_chan_try_recv*(chanId: int32): uint64 {.exportc: "nimts_chan_try_recv", cdecl.} =
+  ## Non-blocking dequeue from channel chanId; returns packed (len << 32) | ptr or 0 if empty.
   if not gChannelSlots.hasKey(chanId): return 0'u64
   let slot = gChannelSlots[chanId]
   return slot.tryRecvProc(slot.chanPtr)
 
 proc nimts_chan_is_closed*(chanId: int32): int32 {.exportc: "nimts_chan_is_closed", cdecl.} =
+  ## Return 1 if channel chanId is closed or invalid, or 0 if open.
   if not gChannelSlots.hasKey(chanId): return 1
   let slot = gChannelSlots[chanId]
   return if slot.isClosedProc(slot.chanPtr): 1 else: 0
 
 proc nimts_chan_close*(chanId: int32) {.exportc: "nimts_chan_close", cdecl.} =
+  ## Mark channel chanId as closed without destroying buffered items.
   if gChannelSlots.hasKey(chanId):
     let slot = gChannelSlots[chanId]
     slot.closeProc(slot.chanPtr)
 
 proc nimts_chan_destroy*(chanId: int32) {.exportc: "nimts_chan_destroy", cdecl.} =
+  ## Close channel chanId, remove it from the registry, and release its GC reference.
   if gChannelSlots.hasKey(chanId):
     let slot = gChannelSlots[chanId]
     gChannelSlots.del(chanId)
@@ -236,6 +242,7 @@ proc nimts_chan_destroy*(chanId: int32) {.exportc: "nimts_chan_destroy", cdecl.}
       slot.destroyProc(slot.chanPtr)
 
 proc nimts_chan_get_raw_ptrs*(chanId: int32, headPtr: ptr pointer, tailPtr: ptr pointer, bufPtr: ptr pointer, capPtr: ptr int32): int32 {.exportc: "nimts_chan_get_raw_ptrs", cdecl.} =
+  ## Populate raw WASM memory pointers for channel chanId ring-buffer head, tail, data, and capacity.
   if not gChannelSlots.hasKey(chanId): return -1
   let slot = gChannelSlots[chanId]
   if slot.getRawPtrsProc == nil: return -1
@@ -243,18 +250,23 @@ proc nimts_chan_get_raw_ptrs*(chanId: int32, headPtr: ptr pointer, tailPtr: ptr 
 
 # Module-namespaced C-ABI aliases
 proc nimts_core_chan_send*(chanId: int32, dataPtr: pointer, dataLen: int32): int32 {.exportc: "nimts_core_chan_send", cdecl.} =
+  ## Module-namespaced alias for nimts_chan_send.
   nimts_chan_send(chanId, dataPtr, dataLen)
 
 proc nimts_core_chan_try_recv*(chanId: int32): uint64 {.exportc: "nimts_core_chan_try_recv", cdecl.} =
+  ## Module-namespaced alias for nimts_chan_try_recv.
   nimts_chan_try_recv(chanId)
 
 proc nimts_core_chan_is_closed*(chanId: int32): int32 {.exportc: "nimts_core_chan_is_closed", cdecl.} =
+  ## Module-namespaced alias for nimts_chan_is_closed.
   nimts_chan_is_closed(chanId)
 
 proc nimts_core_chan_close*(chanId: int32) {.exportc: "nimts_core_chan_close", cdecl.} =
+  ## Module-namespaced alias for nimts_chan_close.
   nimts_chan_close(chanId)
 
 proc nimts_core_chan_get_raw_ptrs*(chanId: int32, headPtr: ptr pointer, tailPtr: ptr pointer, bufPtr: ptr pointer, capPtr: ptr int32): int32 {.exportc: "nimts_core_chan_get_raw_ptrs", cdecl.} =
+  ## Module-namespaced alias for nimts_chan_get_raw_ptrs.
   nimts_chan_get_raw_ptrs(chanId, headPtr, tailPtr, bufPtr, capPtr)
 
 import std/macros

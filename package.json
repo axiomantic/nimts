@@ -43,6 +43,7 @@
   ],
   "scripts": {
     "build": "tsc",
+    "gen:cabi-dts": "python3 scripts/gen_cabi_dts.py --default-targets",
     "compile:fixtures": "./scripts/compile_wasm.sh tests/fixtures/test_module.nim tests/fixtures/test_module.wasm tests/fixtures/nimcache",
     "pretest": "npm run compile:fixtures",
     "test:nim-js": "nim js -d:nodejs -o:tests/fixtures/test_nim_js_client.mjs tests/test_nim_js_client.nim && node tests/fixtures/test_nim_js_client.mjs",

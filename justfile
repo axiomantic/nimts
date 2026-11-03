@@ -12,6 +12,7 @@ setup:
 test:
     @just test-nim
     @just test-ts
+    @just test-py
 
 test-nim:
     nimble test
@@ -19,6 +20,25 @@ test-nim:
 test-ts:
     @just compile-wasm
     npx vitest run
+
+test-py:
+    @if [ -n "${VIRTUAL_ENV:-}" ] && [ -x "${VIRTUAL_ENV}/bin/pytest" ]; then \
+        "${VIRTUAL_ENV}/bin/pytest" -q tests/test_headerkit_ts_wasm.py; \
+    elif [ -x .venv/bin/pytest ]; then \
+        .venv/bin/pytest -q tests/test_headerkit_ts_wasm.py; \
+    else \
+        pytest -q tests/test_headerkit_ts_wasm.py; \
+    fi
+
+# Generate C-ABI WebAssembly .d.ts declarations via HeaderKit
+gen-cabi-dts:
+    @if [ -n "${VIRTUAL_ENV:-}" ] && [ -x "${VIRTUAL_ENV}/bin/python3" ]; then \
+        "${VIRTUAL_ENV}/bin/python3" scripts/gen_cabi_dts.py --default-targets; \
+    elif [ -x .venv/bin/python3 ]; then \
+        .venv/bin/python3 scripts/gen_cabi_dts.py --default-targets; \
+    else \
+        python3 scripts/gen_cabi_dts.py --default-targets; \
+    fi
 
 # 3. Linter Execution
 lint:
