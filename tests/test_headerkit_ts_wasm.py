@@ -290,7 +290,7 @@ export interface SynthDspExports extends WebAssembly.Exports {
 """
     assert actual_with_mem == expected_with_mem
 
-    # Without Nim source enrichment, NimCleanupTransform strips _p0/_p1 and TsWasmWriter escapes TS keywords
+    # Without Nim source enrichment, NimBackend strips _p0/_p1 and TsWasmWriter escapes TS keywords
     actual_no_nim = generate_cabi_dts(
         header_code=header_code,
         interface_name="SynthRawExports",
@@ -362,8 +362,8 @@ N_LIB_PRIVATE N_CDECL(NI32, nimts_only_public)(NI32 value_p0);
 
 def test_headerkit_toml_config_loading() -> None:
     cfg = load_nimts_headerkit_config(REPO_ROOT)
-    assert cfg.backend == "tree-sitter"
-    assert cfg.transforms == ["nim_cleanup"]
+    assert cfg.backend == "nim"
+    assert cfg.transforms == ["doc-parser"]
     assert cfg.writers == ["ts_wasm"]
     ts_wasm_cfg = cfg.writer_options.get("ts_wasm")
     assert ts_wasm_cfg is not None

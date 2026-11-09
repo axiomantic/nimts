@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **First-Class HeaderKit `NimBackend` Migration**: Updated `headerkit.toml`, `scripts/gen_cabi_dts.py`, and `tests/test_headerkit_ts_wasm.py` to use HeaderKit's first-class `NimBackend` (`backend = "nim"`), `clean_nim_c_unit`, and `_run_nim_ast_helper` compiler AST extractor, eliminating legacy `nim_cleanup` and `nim_jsondoc` transforms and regex-based source parsing.
+
 ---
 
 ## [0.3.0] - 2026-11-03

@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 import argparse
-import re
+from dataclasses import dataclass
 import subprocess
 import sys
 import tempfile
@@ -14,9 +14,30 @@ from typing import Any
 
 import headerkit
 from headerkit._config import HeaderkitConfig, load_config
-from headerkit.transforms.nim_jsondoc import NimJsonDocEnricher, _parse_nim_source_file
+from headerkit.backends.nim import NimBackend, _run_nim_ast_helper, clean_nim_c_unit
+from headerkit.hooks import Priority, hook
+from headerkit.ir import Header, SourceUnit
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
+
+
+@hook("parse_unit", backend="nim", priority=Priority.PROJECT)
+def _parse_nim_wasm_cabi_unit(
+    code: str,
+    filename: str = "cabi.h",
+    include_dirs: list[str] | None = None,
+    extra_args: list[str] | None = None,
+    **kwargs: Any,
+) -> SourceUnit:
+    """Parse cross-target wasm32 Nim C-ABI headers via NimBackend(c_backend='tree-sitter')."""
+    kwargs.pop("context", None)
+    return NimBackend(c_backend="tree-sitter").parse(
+        code,
+        filename,
+        include_dirs=include_dirs,
+        extra_args=extra_args,
+        **kwargs,
+    )
 
 
 def load_nimts_headerkit_config(project_root: Path | str | None = None) -> HeaderkitConfig:
@@ -26,18 +47,35 @@ def load_nimts_headerkit_config(project_root: Path | str | None = None) -> Heade
     if cfg_path.is_file():
         return load_config(cfg_path)
     return HeaderkitConfig()
+
+
 CORE_NIMTS_SOURCES: tuple[Path, ...] = (
     REPO_ROOT / "src" / "nimts" / "memory.nim",
     REPO_ROOT / "src" / "nimts" / "async_bridge.nim",
     REPO_ROOT / "src" / "nimts" / "channels.nim",
 )
 
-_PROC_DECL_RE = re.compile(
-    r"^\s*(?:proc|func)\s+`?([A-Za-z_][A-Za-z0-9_]*)`?\s*\*?",
-)
-_EXPORTTS_MODULE_RE = re.compile(
-    r"""export[tT]s\s*\(\s*(?:module\s*[:=]\s*)?"([^"]+)"\s*\)""",
-)
+
+@dataclass(frozen=True)
+class _NimAstEnrichmentStep:
+    """Pipeline transform adapter invoking ``clean_nim_c_unit`` for Nim AST / jsondoc enrichment."""
+
+    nim_source_path: Path | None = None
+    jsondoc_entries: Sequence[Mapping[str, Any]] | None = None
+
+    def transform(self, unit: SourceUnit) -> Header:
+        cleaned = clean_nim_c_unit(
+            unit,
+            nim_source_path=self.nim_source_path,
+            jsondoc_entries=self.jsondoc_entries,
+        )
+        if isinstance(cleaned, Header):
+            return cleaned
+        return Header(
+            path=cleaned.path,
+            declarations=list(cleaned.declarations),
+            included_headers=set(getattr(cleaned, "included_headers", set())),
+        )
 
 
 def derive_interface_name(stem: str) -> str:
@@ -45,7 +83,7 @@ def derive_interface_name(stem: str) -> str:
     cleaned = stem.strip()
     if not cleaned or cleaned.lower() == "nimts":
         return "NimTsCabiExports"
-    parts = [p for p in re.split(r"[^A-Za-z0-9]+", cleaned) if p]
+    parts = "".join(ch if ch.isalnum() else " " for ch in cleaned).split()
     pascal = "".join(p[:1].upper() + p[1:] for p in parts)
     if not pascal:
         return "NimTsCabiExports"
@@ -97,46 +135,75 @@ def compile_nim_cabi_header(
         return header_file.read_text(encoding="utf-8")
 
 
+def _extract_exportts_module_from_line(line: str) -> str | None:
+    """Extract the module argument from an ``{.exportts(module = "...").}`` pragma line."""
+    lower = line.lower()
+    idx = lower.find("exportts")
+    if idx < 0:
+        return None
+    rest = line[idx + len("exportts") :].lstrip()
+    if not rest.startswith("("):
+        return None
+    close_paren = rest.find(")")
+    if close_paren < 0:
+        return None
+    inner = rest[1:close_paren]
+    first_quote = inner.find('"')
+    if first_quote < 0:
+        return None
+    second_quote = inner.find('"', first_quote + 1)
+    if second_quote < 0:
+        return None
+    mod = inner[first_quote + 1 : second_quote].strip()
+    return mod or None
+
+
 def extract_exportts_companion_entries(nim_source: Path | str) -> list[dict[str, Any]]:
     """Extract companion ``nimts_<name>`` jsondoc enrichment entries for ``{.exportts.}`` procs."""
     src_path = Path(nim_source)
     if not src_path.is_file():
         return []
 
-    funcs, _, _ = _parse_nim_source_file(src_path)
+    ast_data = _run_nim_ast_helper(src_path)
+    if ast_data is None:
+        return []
+
     try:
         raw_lines = src_path.read_text(encoding="utf-8").splitlines()
     except OSError:
-        return []
-
-    module_by_proc: dict[str, str] = {}
-    for line in raw_lines:
-        m_proc = _PROC_DECL_RE.match(line)
-        if not m_proc:
-            continue
-        p_name = m_proc.group(1)
-        m_mod = _EXPORTTS_MODULE_RE.search(line)
-        if m_mod:
-            module_by_proc[p_name] = m_mod.group(1)
+        raw_lines = []
 
     entries: list[dict[str, Any]] = []
-    for fn_meta in funcs:
-        if not fn_meta.doc and not fn_meta.is_deprecated:
+    for item in ast_data.get("declarations", []):
+        if not isinstance(item, Mapping) or item.get("kind") != "routine":
             continue
-        mod_prefix = module_by_proc.get(fn_meta.nim_name)
+        nim_name = str(item.get("name") or "").strip()
+        if not nim_name:
+            continue
+        doc_raw = item.get("doc")
+        doc = str(doc_raw).strip() if isinstance(doc_raw, str) and doc_raw.strip() else ""
+        is_dep = bool(item.get("is_deprecated", False))
+        if not doc and not is_dep:
+            continue
+
+        line_no = item.get("line")
+        mod_prefix: str | None = None
+        if isinstance(line_no, int) and 1 <= line_no <= len(raw_lines):
+            mod_prefix = _extract_exportts_module_from_line(raw_lines[line_no - 1])
+
         cabi_name = (
-            f"nimts_{mod_prefix}_{fn_meta.nim_name}"
+            f"nimts_{mod_prefix}_{nim_name}"
             if mod_prefix
-            else f"nimts_{fn_meta.nim_name}"
+            else f"nimts_{nim_name}"
         )
         entry: dict[str, Any] = {
-            "name": fn_meta.nim_name,
+            "name": nim_name,
             "exportc": cabi_name,
             "type": "skProc",
-            "deprecated": fn_meta.is_deprecated,
+            "deprecated": is_dep,
         }
-        if fn_meta.doc:
-            entry["description"] = fn_meta.doc
+        if doc:
+            entry["description"] = doc
         entries.append(entry)
     return entries
 
@@ -154,13 +221,13 @@ def generate_cabi_dts(
     include_core_sources: bool = True,
     backend_name: str | None = None,
 ) -> str:
-    """Run the HeaderKit ``NimCleanupTransform`` + ``NimJsonDocEnricher`` + ``TsWasmWriter`` pipeline."""
+    """Run the HeaderKit ``NimBackend`` + ``clean_nim_c_unit`` + ``TsWasmWriter`` pipeline."""
     root = Path(project_root).resolve() if project_root is not None else REPO_ROOT
     hk_cfg = load_nimts_headerkit_config(root)
     ts_wasm_opts = hk_cfg.writer_options.get("ts_wasm")
     cfg_opts = ts_wasm_opts.options if ts_wasm_opts is not None else {}
 
-    eff_backend = backend_name or hk_cfg.backend or "tree-sitter"
+    eff_backend = backend_name or hk_cfg.backend or "nim"
     eff_interface_name = (
         interface_name
         if interface_name is not None
@@ -194,8 +261,6 @@ def generate_cabi_dts(
 
     header_name = resolved_header_path.name if resolved_header_path is not None else "cabi.h"
     transforms_list: list[Any] = []
-    if not hk_cfg.transforms or "nim_cleanup" in hk_cfg.transforms:
-        transforms_list.append("nim_cleanup")
 
     nim_sources_to_enrich: list[Path] = []
     if include_core_sources:
@@ -213,7 +278,7 @@ def generate_cabi_dts(
                 nim_sources_to_enrich.append(p)
 
     for src in nim_sources_to_enrich:
-        transforms_list.append(NimJsonDocEnricher(nim_source_path=src, project_root=root))
+        transforms_list.append(_NimAstEnrichmentStep(nim_source_path=src))
 
     companion_entries: list[Mapping[str, Any]] = []
     if resolved_nim_source is not None:
@@ -221,7 +286,10 @@ def generate_cabi_dts(
     if entries is not None:
         companion_entries.extend(entries)
     if companion_entries:
-        transforms_list.append(NimJsonDocEnricher(entries=companion_entries, project_root=root))
+        transforms_list.append(_NimAstEnrichmentStep(jsondoc_entries=companion_entries))
+
+    for cfg_transform in hk_cfg.transforms or []:
+        transforms_list.append(cfg_transform)
 
     return headerkit.generate(
         header_name,
