@@ -15,14 +15,7 @@ from typing import Any
 
 import headerkit
 from headerkit._config import HeaderkitConfig, load_config
-try:
-    from headerkit.backends.nim import NimBackend, clean_nim_c_unit, extract_nim_ast_data
-except ImportError:
-    from headerkit.backends.nim import (  # type: ignore[no-redef]
-        NimBackend,
-        _run_nim_ast_helper as extract_nim_ast_data,
-        clean_nim_c_unit,
-    )
+from headerkit.backends.nim import NimBackend, clean_nim_c_unit, extract_nim_ast_data
 from headerkit.hooks import Priority, hook
 from headerkit.ir import Header, SourceUnit
 
