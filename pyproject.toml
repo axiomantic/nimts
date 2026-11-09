@@ -16,8 +16,5 @@ testpaths = ["tests"]
 python_files = ["test_*.py"]
 addopts = "-q -p no:testmon -p no:cacheprovider"
 
-[tool.tripwire.guard]
-subprocess = "off"
-
 [tool.tripwire.firewall]
 allow = ["subprocess:nim"]

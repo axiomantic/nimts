@@ -8,13 +8,21 @@ from dataclasses import dataclass
 import subprocess
 import sys
 import tempfile
+import warnings
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
 import headerkit
 from headerkit._config import HeaderkitConfig, load_config
-from headerkit.backends.nim import NimBackend, _run_nim_ast_helper, clean_nim_c_unit
+try:
+    from headerkit.backends.nim import NimBackend, clean_nim_c_unit, extract_nim_ast_data
+except ImportError:
+    from headerkit.backends.nim import (  # type: ignore[no-redef]
+        NimBackend,
+        _run_nim_ast_helper as extract_nim_ast_data,
+        clean_nim_c_unit,
+    )
 from headerkit.hooks import Priority, hook
 from headerkit.ir import Header, SourceUnit
 
@@ -164,13 +172,22 @@ def extract_exportts_companion_entries(nim_source: Path | str) -> list[dict[str,
     if not src_path.is_file():
         return []
 
-    ast_data = _run_nim_ast_helper(src_path)
+    ast_data = extract_nim_ast_data(src_path)
     if ast_data is None:
+        warnings.warn(
+            f"Nim AST extraction returned no data for {src_path}; "
+            "companion metadata (docs, deprecation, module prefixes) may be incomplete",
+            stacklevel=2,
+        )
         return []
 
     try:
         raw_lines = src_path.read_text(encoding="utf-8").splitlines()
-    except OSError:
+    except OSError as exc:
+        warnings.warn(
+            f"Failed to read source file {src_path}: {exc}",
+            stacklevel=2,
+        )
         raw_lines = []
 
     entries: list[dict[str, Any]] = []
