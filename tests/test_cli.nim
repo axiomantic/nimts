@@ -7,10 +7,10 @@ import std/strutils
 
 suite "NimTS CLI Executable":
 
-  test "nimts --version returns 0.3.0":
+  test "nimts --version returns 0.4.0":
     let (output, exitCode) = execCmdEx("nim r -p:src src/nimts.nim --version")
     check exitCode == 0
-    check output.strip.contains("nimts 0.3.0")
+    check output.strip.contains("nimts 0.4.0")
 
   test "nimts --help displays usage and command list":
     let (output, exitCode) = execCmdEx("nim r -p:src src/nimts.nim --help")

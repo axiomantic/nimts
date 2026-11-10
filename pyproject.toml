@@ -1,10 +1,10 @@
 [project]
 name = "nimts-cabi-tools"
-version = "0.3.0"
+version = "0.4.0"
 description = "HeaderKit v2 TypeScript WebAssembly (.d.ts) C-ABI declaration generator for NimTS"
 requires-python = ">=3.11,<3.14"
 dependencies = [
-    "headerkit[treesitter]>=0.50.0",
+    "headerkit[treesitter]>=0.51.0",
     "pytest>=8.0",
 ]
 

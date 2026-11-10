@@ -2,10 +2,20 @@
 
 from __future__ import annotations
 
-import sys
 from pathlib import Path
+import sys
+from unittest.mock import patch
 
 import pytest
+
+try:
+    from tripwire._match import M as _TripwireMatch
+
+    _ALLOW_NIM_AST_HELPER = pytest.mark.allow(
+        _TripwireMatch(protocol="subprocess", binary__glob="**/nim_ast_helper*")
+    )
+except ImportError:
+    _ALLOW_NIM_AST_HELPER = pytest.mark.allow("subprocess")
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 if str(REPO_ROOT / "scripts") not in sys.path:
@@ -187,6 +197,7 @@ def test_derive_interface_name_exact() -> None:
     assert derive_interface_name("123_dsp") == "Mod123DspCabiExports"
 
 
+@_ALLOW_NIM_AST_HELPER
 def test_extract_exportts_companion_entries_exact() -> None:
     entries = extract_exportts_companion_entries(REPO_ROOT / "tests" / "fixtures" / "test_module.nim")
     assert entries == [
@@ -207,6 +218,7 @@ def test_extract_exportts_companion_entries_exact() -> None:
     ]
 
 
+@_ALLOW_NIM_AST_HELPER
 def test_nimts_core_cabi_exports_exact_equality() -> None:
     actual = generate_cabi_dts(
         nim_source=REPO_ROOT / "src" / "nimts.nim",
@@ -219,6 +231,7 @@ def test_nimts_core_cabi_exports_exact_equality() -> None:
     assert committed == EXPECTED_NIMTS_CABI_EXPORTS
 
 
+@_ALLOW_NIM_AST_HELPER
 def test_fixture_module_cabi_exports_exact_equality() -> None:
     core_out, fixture_out = generate_default_targets(REPO_ROOT)
     assert core_out.read_text(encoding="utf-8") == EXPECTED_NIMTS_CABI_EXPORTS
@@ -233,6 +246,7 @@ def test_fixture_module_cabi_exports_exact_equality() -> None:
     assert actual == EXPECTED_TEST_MODULE_CABI_EXPORTS
 
 
+@_ALLOW_NIM_AST_HELPER
 def test_scalar_abi_mapping_jsdoc_deprecated_and_param_restoration(tmp_path: Path) -> None:
     nim_src = tmp_path / "synth_dsp.nim"
     nim_src.write_text(
@@ -290,7 +304,7 @@ export interface SynthDspExports extends WebAssembly.Exports {
 """
     assert actual_with_mem == expected_with_mem
 
-    # Without Nim source enrichment, NimCleanupTransform strips _p0/_p1 and TsWasmWriter escapes TS keywords
+    # Without Nim source enrichment, NimBackend strips _p0/_p1 and TsWasmWriter escapes TS keywords
     actual_no_nim = generate_cabi_dts(
         header_code=header_code,
         interface_name="SynthRawExports",
@@ -359,11 +373,47 @@ N_LIB_PRIVATE N_CDECL(NI32, nimts_only_public)(NI32 value_p0);
     with pytest.raises(FileNotFoundError, match="Nim source file not found"):
         compile_nim_cabi_header(missing_nim)
 
+    # Negative control 4: extract_exportts_companion_entries warns when AST extraction returns None or read_text raises OSError
+    sample_nim = tmp_path / "warn_check.nim"
+    sample_nim.write_text("proc f*(x: int32): int32 {.exportts.} = x\n", encoding="utf-8")
+    with patch("gen_cabi_dts.extract_nim_ast_data", return_value=None):
+        with pytest.warns(UserWarning, match="Nim AST extraction returned no data"):
+            assert extract_exportts_companion_entries(sample_nim) == []
+
+    fake_ast = {
+        "path": str(sample_nim),
+        "included_files": [],
+        "declarations": [
+            {
+                "kind": "routine",
+                "name": "f",
+                "doc": "Docstring for f.",
+                "is_deprecated": False,
+                "line": 1,
+            }
+        ],
+    }
+    with (
+        patch("gen_cabi_dts.extract_nim_ast_data", return_value=fake_ast),
+        patch.object(Path, "read_text", side_effect=OSError("disk read error")),
+    ):
+        with pytest.warns(UserWarning, match="Failed to read source file"):
+            res = extract_exportts_companion_entries(sample_nim)
+            assert res == [
+                {
+                    "name": "f",
+                    "exportc": "nimts_f",
+                    "type": "skProc",
+                    "deprecated": False,
+                    "description": "Docstring for f.",
+                }
+            ]
+
 
 def test_headerkit_toml_config_loading() -> None:
     cfg = load_nimts_headerkit_config(REPO_ROOT)
-    assert cfg.backend == "tree-sitter"
-    assert cfg.transforms == ["nim_cleanup"]
+    assert cfg.backend == "nim"
+    assert cfg.transforms == ["doc-parser"]
     assert cfg.writers == ["ts_wasm"]
     ts_wasm_cfg = cfg.writer_options.get("ts_wasm")
     assert ts_wasm_cfg is not None

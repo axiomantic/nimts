@@ -1,5 +1,5 @@
-backend = "tree-sitter"
-transforms = ["nim_cleanup"]
+backend = "nim"
+transforms = ["doc-parser"]
 writers = ["ts_wasm"]
 
 [writer.ts_wasm]
