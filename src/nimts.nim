@@ -26,7 +26,7 @@ when isMainModule:
   import std/osproc
   import std/strutils
 
-  const Version = "0.3.0"
+  const Version = "0.4.0"
 
   proc printHelp() =
     echo "NimTS: Seamless TypeScript & WebAssembly Bridge for Nim (v", Version, ")"

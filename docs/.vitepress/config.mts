@@ -25,9 +25,9 @@ export default withMermaid(
       { text: "Vite Plugin", link: "/guide/vite-plugin" },
       { text: "Changelog", link: "/changelog" },
       {
-        text: "v0.3.0",
+        text: "v0.4.0",
         items: [
-          { text: "v0.3.0 (Current Release)", link: "/" },
+          { text: "v0.4.0 (Current Release)", link: "/" },
           { text: "Changelog & Release Notes", link: "/changelog" },
           { text: "GitHub Releases", link: "https://github.com/axiomantic/nimts/releases" },
           { text: "NPM Package", link: "https://www.npmjs.com/package/@axiomantic/nimts" },
