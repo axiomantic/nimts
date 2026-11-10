@@ -10,7 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
-- **First-Class HeaderKit `NimBackend` Migration**: Updated `headerkit.toml`, `scripts/gen_cabi_dts.py`, and `tests/test_headerkit_ts_wasm.py` to use HeaderKit's first-class `NimBackend` (`backend = "nim"`), `clean_nim_c_unit`, and direct public `extract_nim_ast_data` compiler AST extractor import (with `UserWarning` diagnostics on AST/file-read failures, zero private `_run_nim_ast_helper` fallbacks, and scoped Tripwire subprocess allow rules), eliminating legacy `nim_cleanup` and `nim_jsondoc` transforms and regex-based source parsing.
+- **First-Class HeaderKit `NimBackend` Migration (`headerkit[treesitter]>=0.51.0`)**: Updated `pyproject.toml`, `uv.lock`, `headerkit.toml`, `scripts/gen_cabi_dts.py`, and `tests/test_headerkit_ts_wasm.py` to require `headerkit[treesitter]>=0.51.0` from PyPI and use HeaderKit's first-class `NimBackend` (`backend = "nim"`), `clean_nim_c_unit`, and direct public `extract_nim_ast_data` compiler AST extractor import (with `UserWarning` diagnostics on AST/file-read failures, zero private `_run_nim_ast_helper` fallbacks, and scoped Tripwire subprocess allow rules), eliminating legacy `nim_cleanup` and `nim_jsondoc` transforms and regex-based source parsing.
 
 ---
 
